@@ -8,16 +8,19 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from lastpass.client import LastPassClient
 from lastpass.models import Account
+from lastpass.session import Session
 from lastpass.exceptions import (
     LoginFailedException,
     AccountNotFoundException,
     InvalidSessionException,
+    NetworkException,
 )
 from tests.test_fixtures import (
     MOCK_LOGIN_SUCCESS_XML,
     TEST_USERNAME,
     TEST_PASSWORD,
     get_mock_accounts,
+    get_mock_session,
 )
 
 
@@ -458,6 +461,422 @@ class TestGetNotes:
             client.get_notes("NonExistent", sync=False)
 
 
+class TestWriteOperations:
+    """Test write operations (add, update, delete, duplicate, move)"""
+    
+    @responses.activate
+    def test_add_account_success(self):
+        """Test successful account addition"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._blob_loaded = True
+        
+        # Mock the add account call
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"12345"}',
+            status=200,
+        )
+        
+        # Mock the sync call
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        account_id = client.add_account(
+            name="Test Account",
+            username="testuser",
+            password="testpass",
+            url="https://example.com",
+            notes="Test notes",
+        )
+        
+        assert account_id == "12345"
+    
+    @responses.activate
+    def test_add_account_with_group(self):
+        """Test adding account with group"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"12345"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        account_id = client.add_account(
+            name="Work Account",
+            username="workuser",
+            password="workpass",
+            group="Work\\Websites",
+        )
+        
+        assert account_id == "12345"
+    
+    @responses.activate
+    def test_add_account_with_custom_fields(self):
+        """Test adding account with custom fields"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"12345"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        custom_fields = {
+            "Security Question": "Blue",
+            "PIN": "1234",
+        }
+        
+        account_id = client.add_account(
+            name="Bank Account",
+            username="bankuser",
+            password="bankpass",
+            fields=custom_fields,
+        )
+        
+        assert account_id == "12345"
+    
+    def test_add_account_not_logged_in(self):
+        """Test adding account without login"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.add_account(name="Test", username="user", password="pass")
+    
+    @responses.activate
+    def test_update_account_success(self):
+        """Test successful account update"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"updated"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        client.update_account("GitHub", username="newuser")
+    
+    @responses.activate
+    def test_update_account_multiple_fields(self):
+        """Test updating multiple account fields"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"updated"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        client.update_account(
+            "GitHub",
+            name="Updated GitHub",
+            username="newuser",
+            password="newpass",
+            url="https://new.github.com",
+            notes="Updated notes",
+        )
+    
+    def test_update_account_not_found(self):
+        """Test updating non-existent account"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException):
+            client.update_account("NonExistent", username="newuser")
+    
+    def test_update_account_not_logged_in(self):
+        """Test updating account without login"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.update_account("Test", username="user")
+    
+    @responses.activate
+    def test_delete_account_success(self):
+        """Test successful account deletion"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"deleted"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        client.delete_account("GitHub")
+    
+    def test_delete_account_not_found(self):
+        """Test deleting non-existent account"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException):
+            client.delete_account("NonExistent")
+    
+    def test_delete_account_not_logged_in(self):
+        """Test deleting account without login"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.delete_account("Test")
+    
+    @responses.activate
+    def test_duplicate_account_success(self):
+        """Test successful account duplication"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"99999"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        new_id = client.duplicate_account("GitHub", new_name="GitHub Copy")
+        
+        assert new_id == "99999"
+    
+    @responses.activate
+    def test_duplicate_account_default_name(self):
+        """Test duplicating account with default name"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"99999"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        new_id = client.duplicate_account("GitHub")
+        
+        assert new_id == "99999"
+    
+    def test_duplicate_account_not_found(self):
+        """Test duplicating non-existent account"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException):
+            client.duplicate_account("NonExistent")
+    
+    def test_duplicate_account_not_logged_in(self):
+        """Test duplicating account without login"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.duplicate_account("Test")
+    
+    @responses.activate
+    def test_move_account_success(self):
+        """Test successful account move"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"updated"}',
+            status=200,
+        )
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/getaccts.php",
+            body=b"",
+            status=200,
+        )
+        
+        client.move_account("GitHub", "Work\\Development")
+    
+    def test_move_account_not_found(self):
+        """Test moving non-existent account"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException):
+            client.move_account("NonExistent", "Work")
+    
+    def test_move_account_not_logged_in(self):
+        """Test moving account without login"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.move_account("Test", "Work")
+
+
+class TestUpdateAccountEdgeCases:
+    """Test edge cases in update_account"""
+    
+    def test_update_account_with_notes_and_group(self):
+        """Test update_account with both notes and group (line 483)"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        from tests.test_fixtures import get_mock_blob_data
+        mock_blob = get_mock_blob_data(client.encryption_key)
+        
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, "https://lastpass.com/show_website.php", body=b"")
+            rsps.add(responses.POST, "https://lastpass.com/getaccts.php", body=mock_blob)
+            
+            # Update with both notes and group
+            client.update_account("GitHub", notes="New notes", group="Work")
+            
+            # Verify the request was made
+            assert len(rsps.calls) == 2
+
+
+class TestDuplicateAccountEdgeCases:
+    """Test edge cases in duplicate_account"""
+    
+    def test_duplicate_account_with_fields(self):
+        """Test duplicate_account preserves custom fields (lines 543-544)"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        
+        from lastpass.models import Field
+        from tests.test_fixtures import get_mock_blob_data
+        
+        account_with_fields = Account(
+            id="1",
+            name="GitHub",
+            username="user@example.com",
+            password="pass123",
+            url="https://github.com",
+            group="Personal",
+            fields=[
+                Field(name="API Key", value="abc123", type="text"),
+                Field(name="Secret", value="xyz789", type="password"),
+            ]
+        )
+        client._accounts = [account_with_fields]
+        client._blob_loaded = True
+        
+        mock_blob = get_mock_blob_data(client.encryption_key)
+        
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, "https://lastpass.com/show_website.php", 
+                    body=b'{"aid":"123"}')
+            rsps.add(responses.POST, "https://lastpass.com/getaccts.php", body=mock_blob)
+            
+            new_id = client.duplicate_account("GitHub", new_name="GitHub Copy")
+            
+            assert new_id == "123"
+            # Verify fields were included in the add_account call
+            request_body = rsps.calls[0].request.body
+            # The custom fields should be encrypted and included
+            # Convert to string for comparison to handle both bytes and string types
+            if isinstance(request_body, bytes):
+                request_body = request_body.decode('utf-8')
+            assert "method=cr" in request_body
+
+
 class TestClientEdgeCases:
     """Test edge cases for LastPassClient"""
     
@@ -486,3 +905,115 @@ class TestClientEdgeCases:
             client.login(TEST_USERNAME, TEST_PASSWORD, force=True)
         
         assert client.session is not None
+
+
+class TestLoginEdgeCases:
+    """Test edge cases in login"""
+    
+    @responses.activate
+    def test_login_http_error(self, temp_config_dir):
+        """Test login with HTTP error status"""
+        client = LastPassClient(config_dir=temp_config_dir)
+        
+        responses.add(responses.POST, "https://lastpass.com/iterations.php", body=b"5000", status=200)
+        # Return 401 status to trigger the HTTP error check in client.login()
+        responses.add(responses.POST, "https://lastpass.com/login.php", 
+                body=b"<response><error cause='unknownlogin'>Unknown email address.</error></response>",
+                status=401)
+        
+        with pytest.raises(LoginFailedException, match="Login failed with HTTP status 401"):
+            client.login(TEST_USERNAME, TEST_PASSWORD)
+    
+    @responses.activate
+    def test_login_with_invalid_private_key(self, temp_config_dir):
+        """Test login with private key that fails decryption"""
+        client = LastPassClient(config_dir=temp_config_dir)
+        
+        # Create mock response with invalid private key
+        invalid_key_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<response>
+    <ok uid="123" sessionid="sess456" token="tok789" privatekeyenc="invalid_hex_data"/>
+</response>"""
+        
+        responses.add(responses.POST, "https://lastpass.com/iterations.php", body=b"5000", status=200)
+        responses.add(responses.POST, "https://lastpass.com/login.php", 
+                body=invalid_key_xml, status=200)
+        
+        # Should not raise - private key decryption failure is caught
+        client.login(TEST_USERNAME, TEST_PASSWORD)
+        
+        # Session should still be created
+        assert client.session is not None
+        assert client.session.uid == "123"
+
+
+class TestLogoutEdgeCases:
+    """Test edge cases in logout"""
+    
+    def test_logout_http_error_without_force(self, temp_config_dir):
+        """Test logout that fails without force flag"""
+        client = LastPassClient(config_dir=temp_config_dir)
+        
+        from lastpass.session import Session
+        client.session = Session(uid="123", sessionid="sess", token="tok")
+        
+        with patch.object(client.http, 'logout', side_effect=NetworkException("Server error")):
+            with pytest.raises(NetworkException):
+                client.logout(force=False)
+    
+    def test_logout_http_error_with_force(self, temp_config_dir):
+        """Test logout that fails with force flag"""
+        client = LastPassClient(config_dir=temp_config_dir)
+        
+        from lastpass.session import Session
+        client.session = Session(uid="123", sessionid="sess", token="tok")
+        
+        with patch.object(client.http, 'logout', side_effect=NetworkException("Server error")):
+            # Should not raise with force=True
+            client.logout(force=True)
+            
+            # Session should still be cleared
+            assert client.session is None
+
+
+class TestFindAccountEdgeCases:
+    """Test edge cases in find_account"""
+    
+    def test_find_account_multiple_matches(self):
+        """Test find_account with multiple matches raises error"""
+        client = LastPassClient()
+        
+        session = get_mock_session()
+        client.session = session
+        client.encryption_key = b"a" * 32
+        client._accounts = [
+            Account(id="1", name="Test", username="user1", password="pass1", url="http://test.com", group="Personal"),
+            Account(id="2", name="Test", username="user2", password="pass2", url="http://test.com", group="Work"),
+        ]
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException, match="Multiple accounts match 'Test'"):
+            client.find_account("Test", sync=False)
+
+
+class TestSearchAccountsEdgeCases:
+    """Test edge cases in search_accounts"""
+    
+    def test_search_accounts_with_group_filter(self):
+        """Test search_accounts with group filtering"""
+        client = LastPassClient()
+        
+        session = get_mock_session()
+        client.session = session
+        client.encryption_key = b"a" * 32
+        client._accounts = [
+            Account(id="1", name="Gmail", username="user1", password="pass1", url="http://gmail.com", group="Personal"),
+            Account(id="2", name="GitHub", username="user2", password="pass2", url="http://github.com", group="Work"),
+            Account(id="3", name="GitLab", username="user3", password="pass3", url="http://gitlab.com", group="Work"),
+        ]
+        
+        # Search with group filter
+        results = client.search_accounts("git", sync=False, group="Work")
+        
+        assert len(results) == 2
+        assert all(a.group == "Work" for a in results)

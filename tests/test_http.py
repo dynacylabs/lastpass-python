@@ -5,10 +5,11 @@ Tests for lastpass.http module
 import pytest
 import responses
 from requests.exceptions import RequestException
+from unittest.mock import patch
 from lastpass.http import HTTPClient
 from lastpass.session import Session
 from lastpass.exceptions import NetworkException
-from tests.test_fixtures import MOCK_LOGIN_SUCCESS_XML
+from tests.test_fixtures import MOCK_LOGIN_SUCCESS_XML, get_mock_session
 
 
 class TestHTTPClient:
@@ -453,6 +454,175 @@ class TestDeleteAccount:
         assert "Failed to delete account" in str(exc_info.value)
 
 
+class TestAddAccount:
+    """Test add_account method"""
+    
+    @responses.activate
+    def test_add_account_success(self):
+        """Test successful account addition"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"12345","msg":"accountadded"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        account_data = {
+            "name": "Test Account",
+            "username": "testuser",
+            "password": "testpass",
+            "url": "https://example.com",
+        }
+        
+        account_id = client.add_account(session, account_data)
+        
+        assert account_id == "12345"
+        assert len(responses.calls) == 1
+        assert responses.calls[0].request.body
+        assert "method=cr" in str(responses.calls[0].request.body)
+    
+    @responses.activate
+    def test_add_account_with_group(self):
+        """Test adding account with group"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"aid":"12345"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        account_data = {
+            "name": "Test Account",
+            "username": "testuser",
+            "password": "testpass",
+            "url": "https://example.com",
+            "grouping": "Personal",
+        }
+        
+        account_id = client.add_account(session, account_data)
+        
+        assert account_id == "12345"
+    
+    @responses.activate
+    def test_add_account_failure(self):
+        """Test failed account addition"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b"error",
+            status=500,
+        )
+        
+        client = HTTPClient()
+        account_data = {"name": "Test Account"}
+        
+        with pytest.raises(NetworkException) as exc_info:
+            client.add_account(session, account_data)
+        
+        assert "Failed to add account" in str(exc_info.value)
+    
+    @responses.activate
+    def test_add_account_no_aid_in_response(self):
+        """Test adding account when response doesn't contain aid"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"accountadded"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        account_data = {"name": "Test Account"}
+        
+        account_id = client.add_account(session, account_data)
+        
+        assert account_id == ""
+
+
+class TestUpdateAccount:
+    """Test update_account method"""
+    
+    @responses.activate
+    def test_update_account_success(self):
+        """Test successful account update"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"accountupdated"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        account_data = {
+            "name": "Updated Account",
+            "username": "newuser",
+        }
+        
+        client.update_account(session, "12345", account_data)
+        
+        assert len(responses.calls) == 1
+        assert "method=save" in str(responses.calls[0].request.body)
+        assert "aid=12345" in str(responses.calls[0].request.body)
+    
+    @responses.activate
+    def test_update_account_all_fields(self):
+        """Test updating all account fields"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b'{"msg":"accountupdated"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        account_data = {
+            "name": "Updated Account",
+            "username": "newuser",
+            "password": "newpass",
+            "url": "https://newurl.com",
+            "notes": "Updated notes",
+            "grouping": "Work",
+        }
+        
+        client.update_account(session, "12345", account_data)
+        
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_update_account_failure(self):
+        """Test failed account update"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/show_website.php",
+            body=b"error",
+            status=500,
+        )
+        
+        client = HTTPClient()
+        account_data = {"name": "Updated Account"}
+        
+        with pytest.raises(NetworkException) as exc_info:
+            client.update_account(session, "12345", account_data)
+        
+        assert "Failed to update account" in str(exc_info.value)
+
+
 class TestHTTPEdgeCases:
     """Test edge cases for HTTP client"""
     
@@ -488,3 +658,40 @@ class TestHTTPEdgeCases:
         
         assert len(content) == 10000000
         assert status == 200
+
+
+class TestHTTPRetryEdgeCases:
+    """Test HTTP retry edge cases"""
+    
+    @responses.activate
+    def test_max_retries_exceeded(self):
+        """Test that request exceptions after max retries raise NetworkException"""
+        import requests
+        
+        # Mock connection error that will trigger retries
+        client = HTTPClient()
+        
+        # Patch the session.post to always raise
+        with patch.object(client.session, 'post', side_effect=requests.ConnectionError("Connection failed")):
+            with pytest.raises(NetworkException, match="HTTP request failed"):
+                client.post("test.php", {})
+    
+    @responses.activate
+    def test_rate_limit_in_download_blob(self):
+        """Test persistent rate limiting in download_blob"""
+        # Setup session
+        session = Session(uid="123", sessionid="sess", token="tok")
+        
+        # All attempts return 429
+        for _ in range(4):  # Initial + 3 retries
+            responses.add(
+                responses.POST,
+                "https://lastpass.com/getaccts.php",
+                status=429,
+            )
+        
+        client = HTTPClient()
+        
+        # Should raise with specific rate limit message
+        with pytest.raises(NetworkException, match="Rate limited by LastPass"):
+            client.download_blob(session)

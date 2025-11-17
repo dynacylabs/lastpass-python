@@ -1,88 +1,71 @@
-# LastPass Python CLI and API
+# LastPass Python
 
-A complete Python implementation of the LastPass command-line interface with a friendly Python API for programmatic access.
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/dynacylabs/lastpass-python)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-GPLv2+-blue.svg)](LICENSE)
+
+A complete Python implementation of the LastPass CLI with a friendly API for programmatic access to your LastPass vault.
 
 ## Features
 
-✅ **Complete CLI Implementation** - All major LastPass CLI commands
-✅ **Python API** - Clean, Pythonic interface for programmatic access
-✅ **Secure** - AES-256 encryption, PBKDF2 key derivation
-✅ **Cross-platform** - Works on Linux, macOS, and Windows
-✅ **No Binary Dependencies** - Pure Python with standard crypto libraries
+- 🔐 **Secure** - AES-256 encryption, PBKDF2 key derivation
+- 🐍 **Pure Python** - No binary dependencies, works everywhere
+- 🚀 **Complete CLI** - All major LastPass commands implemented
+- 📚 **Python API** - Clean interface for scripts and automation
+- 🧪 **Well Tested** - 331+ tests with 95% code coverage
+- 🌍 **Cross-Platform** - Linux, macOS, and Windows
 
-## Project Structure
+## Table of Contents
 
-```
-lastpass/           # Core Python package
-  __init__.py       # Package initialization and exports
-  client.py         # Main LastPass client with Python API
-  cli.py            # Command-line interface
-  models.py         # Data models (Account, Field, Share, etc.)
-  session.py        # Session management
-  http.py           # HTTP communication
-  blob.py           # Vault blob parsing
-  cipher.py         # Cryptographic operations
-  kdf.py            # Key derivation functions
-  xml_parser.py     # XML response parsing
-  exceptions.py     # Custom exceptions
-
-tests/              # Unit tests
-lastpass-cli/       # Original C implementation (reference)
-```
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+  - [Command Line](#command-line)
+  - [Python API](#python-api)
+- [CLI Reference](#cli-reference)
+- [API Reference](#api-reference)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Installation
 
 ### From Source
 
 ```bash
-git clone https://github.com/lastpass/lastpass-python.git
+git clone https://github.com/dynacylabs/lastpass-python.git
 cd lastpass-python
-git submodule update --init --recursive
 pip install -e .
 ```
 
-### From PyPI (when published)
+### Development Install
 
 ```bash
-pip install lastpass-python
+pip install -e ".[dev]"
 ```
 
-### Optional Dependencies
+This installs additional tools: `pytest`, `pytest-cov`, `pytest-mock`, `responses`
 
-For clipboard support:
-```bash
-pip install lastpass-python[clipboard]
-```
-
-### Running Directly from Source
+### Optional: Clipboard Support
 
 ```bash
-cd lastpass-python
-pip install -r requirements.txt
-python lpass.py login user@example.com
+pip install pyperclip
 ```
 
 ## Quick Start
 
-### Command Line Interface
+### Command Line
 
 ```bash
 # Login
 lpass login user@example.com
 
-# List all accounts
+# List accounts
 lpass ls
 
-# Show account details
-lpass show github
-
-# Get password only
+# Show account details  
 lpass show github --password
 
-# Copy password to clipboard
-lpass show github --password --clip
-
-# Generate a password
+# Generate password
 lpass generate 20
 
 # Logout
@@ -94,118 +77,124 @@ lpass logout
 ```python
 from lastpass import LastPassClient
 
-# Create client and login
+# Login
 client = LastPassClient()
-client.login("user@example.com", "masterpassword")
+client.login("user@example.com", "password")
 
-# Get all accounts
+# Get accounts
 accounts = client.get_accounts()
 for account in accounts:
     print(f"{account.name}: {account.username}")
 
-# Find a specific account
-account = client.find_account("github")
-print(f"Username: {account.username}")
-print(f"Password: {account.password}")
+# Find specific account
+github = client.find_account("github")
+print(github.password)
 
-# Search for accounts
-matches = client.search_accounts("google")
-for match in matches:
-    print(match.fullname)
-
-# Generate a password
-password = client.generate_password(length=20, symbols=True)
+# Generate password
+password = client.generate_password(length=20)
 
 # Logout
 client.logout()
 ```
 
-## CLI Commands
+## CLI Reference
 
-### login
-Login to LastPass:
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `lpass login [USERNAME]` | Login to LastPass |
+| `lpass logout` | Logout and clear session |
+| `lpass status` | Show login status |
+| `lpass show [QUERY]` | Display account details |
+| `lpass ls [GROUP]` | List accounts |
+| `lpass generate [LENGTH]` | Generate password |
+| `lpass sync` | Sync vault from server |
+| `lpass add [NAME]` | Add new account |
+| `lpass edit [QUERY]` | Edit existing account |
+| `lpass rm [QUERY]` | Remove account |
+| `lpass duplicate [QUERY]` | Duplicate account |
+| `lpass mv [QUERY] [GROUP]` | Move account to group |
+
+### Common Options
+
+**login**
 ```bash
-lpass login [OPTIONS] USERNAME
-
-Options:
-  --trust          Trust this device
-  --otp CODE       One-time password for 2FA
-  --force, -f      Force new login
+lpass login user@example.com --trust --otp 123456
 ```
+- `--trust` - Trust this device
+- `--otp CODE` - One-time password for 2FA
+- `--force` - Force new login
 
-### logout
-Logout from LastPass:
+**show**
 ```bash
-lpass logout [OPTIONS]
-
-Options:
-  --force, -f      Force logout even if errors
+lpass show github --password --clip
 ```
+- `--password` - Show only password
+- `--username` - Show only username  
+- `--url` - Show only URL
+- `--notes` - Show only notes
+- `--field NAME` - Show specific field
+- `--json` - Output as JSON
+- `--clip` - Copy to clipboard
 
-### status
-Show login status:
+**ls**
 ```bash
-lpass status [OPTIONS]
-
-Options:
-  --quiet, -q      Quiet mode (no output)
+lpass ls Work --long --json
 ```
+- `--long` - Long listing format
+- `--json` - Output as JSON
 
-### show
-Display account details:
+**generate**
 ```bash
-lpass show [OPTIONS] QUERY
-
-Arguments:
-  QUERY            Account name, ID, or URL
-
-Options:
-  --password       Show only password
-  --username       Show only username
-  --url           Show only URL
-  --notes         Show only notes
-  --field FIELD   Show specific field
-  --json, -j      Output as JSON
-  --clip, -c      Copy to clipboard
+lpass generate 24 --no-symbols --clip
 ```
+- `--no-symbols` - Exclude special characters
+- `--clip` - Copy to clipboard
 
-### ls
-List accounts:
+**add**
 ```bash
-lpass ls [OPTIONS] [GROUP]
-
-Arguments:
-  GROUP           Filter by group/folder
-
-Options:
-  --long, -l      Long listing format
-  --json, -j      Output as JSON
+lpass add "GitHub" --username user@example.com --url https://github.com
 ```
+- `--username` - Account username
+- `--password` - Account password (prompts if not provided)
+- `--url` - Website URL
+- `--notes` - Account notes
+- `--group` - Group/folder name
+- `--generate LENGTH` - Generate password of specified length
 
-### generate
-Generate a random password:
+**edit**
 ```bash
-lpass generate [OPTIONS] [LENGTH]
-
-Arguments:
-  LENGTH          Password length (default: 16)
-
-Options:
-  --no-symbols    Exclude symbols
-  --clip, -c      Copy to clipboard
+lpass edit "GitHub" --password --url https://github.com/login
 ```
+- `--name` - Update account name
+- `--username` - Update username
+- `--password` - Update password (prompts if flag provided without value)
+- `--url` - Update URL
+- `--notes` - Update notes
+- `--group` - Move to different group
 
-### sync
-Sync vault from server:
+**rm**
 ```bash
-lpass sync
+lpass rm "Old Account" --force
 ```
+- `--force` - Skip confirmation prompt
 
-## Python API Reference
+**duplicate**
+```bash
+lpass duplicate "GitHub" --name "GitHub Backup"
+```
+- `--name` - Name for duplicate (defaults to "Copy of [original]")
+
+**mv**
+```bash
+lpass mv "GitHub" "Work/Development"
+```
+- Moves account to specified group/folder
+
+## API Reference
 
 ### LastPassClient
-
-Main client class for interacting with LastPass.
 
 ```python
 from lastpass import LastPassClient
@@ -213,291 +202,213 @@ from lastpass import LastPassClient
 client = LastPassClient(server="lastpass.com", config_dir=None)
 ```
 
-#### Methods
+#### Authentication
 
-##### login(username, password=None, trust=False, otp=None, force=False)
-Login to LastPass.
+**`login(username, password=None, trust=False, otp=None, force=False)`**
+
+Login to LastPass. Returns `Session` object.
 
 ```python
-client.login("user@example.com", "masterpassword")
-
-# With 2FA
-client.login("user@example.com", "masterpassword", otp="123456")
+client.login("user@example.com", "password", otp="123456")
 ```
 
-##### logout(force=False)
-Logout and clear session.
+**`logout(force=False)`**
+
+Logout and clear session data.
 
 ```python
 client.logout()
 ```
 
-##### is_logged_in()
-Check if logged in.
+**`is_logged_in()`**
+
+Check if currently logged in. Returns `bool`.
 
 ```python
 if client.is_logged_in():
-    print("Logged in")
+    print("Logged in!")
 ```
 
-##### sync(force=False)
+#### Vault Operations
+
+**`get_accounts(sync=True)`**
+
+Get all accounts. Returns `List[Account]`.
+
+```python
+accounts = client.get_accounts()
+```
+
+**`find_account(query, sync=True)`**
+
+Find account by name, ID, or URL. Returns `Account` or `None`.
+
+```python
+account = client.find_account("github")
+```
+
+**`search_accounts(query, sync=True, group=None)`**
+
+Search accounts by keyword. Returns `List[Account]`.
+
+```python
+matches = client.search_accounts("google")
+```
+
+**`list_groups(sync=True)`**
+
+Get all group/folder names. Returns `List[str]`.
+
+```python
+groups = client.list_groups()
+```
+
+**`sync(force=False)`**
+
 Sync vault from server.
 
 ```python
 client.sync(force=True)
 ```
 
-##### get_accounts(sync=True)
-Get all accounts.
+#### Utilities
+
+**`generate_password(length=16, symbols=True)`**
+
+Generate random password. Returns `str`.
 
 ```python
-accounts = client.get_accounts()
-for account in accounts:
-    print(account.name)
+password = client.generate_password(length=20, symbols=False)
 ```
 
-##### find_account(query, sync=True)
-Find a single account by name, ID, or URL.
+**`get_password(query, sync=True)`**
 
-```python
-account = client.find_account("github")
-if account:
-    print(account.password)
-```
-
-##### search_accounts(query, sync=True, group=None)
-Search for accounts.
-
-```python
-matches = client.search_accounts("google")
-for match in matches:
-    print(match.fullname)
-```
-
-##### list_groups(sync=True)
-Get all groups/folders.
-
-```python
-groups = client.list_groups()
-for group in groups:
-    print(group)
-```
-
-##### generate_password(length=16, symbols=True)
-Generate a random password.
-
-```python
-password = client.generate_password(length=20, symbols=True)
-```
-
-##### get_password(query, sync=True)
-Get password for an account.
+Get password for account. Returns `str` or `None`.
 
 ```python
 password = client.get_password("github")
 ```
 
-##### get_username(query, sync=True)
-Get username for an account.
+**`get_username(query, sync=True)`**
+
+Get username for account. Returns `str` or `None`.
+
+**`get_notes(query, sync=True)`**
+
+Get notes for account. Returns `str` or `None`.
+
+#### Write Operations
+
+**`add_account(name, username="", password="", url="", notes="", group="", fields=None)`**
+
+Add new account to vault. Returns account ID as `str`.
 
 ```python
-username = client.get_username("github")
+account_id = client.add_account(
+    name="GitHub",
+    username="user@example.com",
+    password="secret123",
+    url="https://github.com",
+    group="Work"
+)
 ```
 
-##### get_notes(query, sync=True)
-Get notes for an account.
+**`update_account(query, name=None, username=None, password=None, url=None, notes=None, group=None)`**
+
+Update existing account. Only provided fields are updated.
 
 ```python
-notes = client.get_notes("github")
+client.update_account("GitHub", password="newsecret", url="https://github.com/login")
+```
+
+**`delete_account(query)`**
+
+Delete account from vault.
+
+```python
+client.delete_account("Old Account")
+```
+
+**`duplicate_account(query, new_name=None)`**
+
+Duplicate an account. Returns new account ID as `str`.
+
+```python
+new_id = client.duplicate_account("GitHub", "GitHub Backup")
+```
+
+**`move_account(query, new_group)`**
+
+Move account to different group/folder.
+
+```python
+client.move_account("GitHub", "Work/Development")
 ```
 
 ### Data Models
 
 #### Account
-Represents a LastPass account/entry.
 
-**Attributes:**
-- `id` (str): Unique account ID
-- `name` (str): Account name
-- `username` (str): Username
-- `password` (str): Password
-- `url` (str): URL
-- `group` (str): Group/folder name
-- `notes` (str): Notes
-- `fullname` (str): Full path (group/name)
-- `fields` (List[Field]): Custom fields
-- `attachments` (List[Attachment]): File attachments
-- `share` (Share): Shared folder info (if applicable)
-
-**Methods:**
-- `to_dict()`: Convert to dictionary
-- `get_field(name)`: Get custom field by name
-- `is_secure_note()`: Check if it's a secure note
+```python
+@dataclass
+class Account:
+    id: str
+    name: str
+    username: str
+    password: str
+    url: str
+    group: str
+    notes: str
+    fullname: str
+    fields: List[Field]
+    attachments: List[Attachment]
+    share: Optional[Share]
+    
+    def to_dict(self) -> Dict
+    def get_field(self, name: str) -> Optional[Field]
+    def is_secure_note(self) -> bool
+```
 
 #### Field
-Custom field in an account.
 
-**Attributes:**
-- `name` (str): Field name
-- `value` (str): Field value
-- `type` (str): Field type
-- `checked` (bool): Checkbox state
+```python
+@dataclass
+class Field:
+    name: str
+    value: str
+    type: str
+    checked: bool
+```
 
 #### Share
-Shared folder information.
 
-**Attributes:**
-- `id` (str): Share ID
-- `name` (str): Share name
-- `readonly` (bool): Read-only flag
-
-#### Attachment
-File attachment.
-
-**Attributes:**
-- `id` (str): Attachment ID
-- `parent_id` (str): Parent account ID
-- `filename` (str): File name
-- `mimetype` (str): MIME type
-- `size` (str): File size
+```python
+@dataclass
+class Share:
+    id: str
+    name: str
+    readonly: bool
+```
 
 ### Exceptions
 
 All exceptions inherit from `LastPassException`:
 
-- `LoginFailedException`: Authentication failed
-- `InvalidSessionException`: Session expired or invalid
-- `NetworkException`: Network/HTTP error
-- `DecryptionException`: Decryption failed
-- `AccountNotFoundException`: Account not found
-- `InvalidPasswordException`: Invalid password
+- `LoginFailedException` - Authentication failed
+- `InvalidSessionException` - Session expired  
+- `NetworkException` - Network/HTTP error
+- `DecryptionException` - Decryption failed
+- `AccountNotFoundException` - Account not found
+- `InvalidPasswordException` - Invalid password
 
 ```python
 from lastpass import LastPassClient, LoginFailedException
 
 try:
-    client = LastPassClient()
-    client.login("user@example.com", "wrong_password")
-except LoginFailedException as e:
-    print(f"Login failed: {e}")
+    client.login("user@example.com", "wrong")
+except LoginFailedException:
+    print("Invalid credentials")
 ```
-
-## Advanced Usage
-
-### Using Context Manager
-
-```python
-from lastpass import LastPassClient
-
-with LastPassClient() as client:
-    client.login("user@example.com", "password")
-    accounts = client.get_accounts()
-    # Client automatically logs out when exiting context
-```
-
-### Filtering Accounts
-
-```python
-# Get accounts in specific group
-accounts = client.search_accounts("", group="Work")
-
-# Get all secure notes
-accounts = [a for a in client.get_accounts() if a.is_secure_note()]
-
-# Get accounts with specific URL
-accounts = [a for a in client.get_accounts() if "github.com" in a.url]
-```
-
-### Working with Custom Fields
-
-```python
-account = client.find_account("mysite")
-
-# Get all custom fields
-for field in account.fields:
-    print(f"{field.name}: {field.value}")
-
-# Get specific field
-api_key_field = account.get_field("API Key")
-if api_key_field:
-    print(api_key_field.value)
-```
-
-### JSON Export
-
-```python
-import json
-
-# Export all accounts to JSON
-accounts = client.get_accounts()
-data = [a.to_dict() for a in accounts]
-
-with open("export.json", "w") as f:
-    json.dump(data, f, indent=2)
-```
-
-## Security Notes
-
-- **Master Password**: Never stored, only used for key derivation
-- **Encryption**: AES-256-CBC with unique IVs
-- **Key Derivation**: PBKDF2-HMAC-SHA256
-- **Session Storage**: Encrypted with derived key, mode 0600
-- **Memory**: Sensitive data cleared when possible
-
-## Configuration
-
-Configuration is stored in:
-- Linux/macOS: `~/.config/lpass/`
-- Windows: `%APPDATA%\lpass\`
-
-Files:
-- `session`: Encrypted session data
-
-## Development
-
-### Setup Development Environment
-
-```bash
-git clone https://github.com/lastpass/lastpass-python.git
-cd lastpass-python
-pip install -e ".[dev]"
-```
-
-### Running Tests
-
-```bash
-pytest
-```
-
-### Code Formatting
-
-```bash
-black lastpass/
-flake8 lastpass/
-mypy lastpass/
-```
-
-## Comparison with C CLI
-
-This Python implementation provides:
-
-✅ **All core functionality** of the C-based CLI
-✅ **Python API** for programmatic access
-✅ **No compilation** required
-✅ **Easier to modify** and extend
-✅ **Better error messages** and debugging
-
-Some differences:
-- Clipboard support requires `pyperclip` or system tools
-- Agent/daemon not implemented (use session-based auth)
-- Some advanced features (shares management, etc.) are simplified
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
@@ -590,269 +501,311 @@ Files:
 
 ## Testing
 
-### Test Suite
+### Running Tests
 
-A comprehensive test suite with **279 test cases** achieving **95% code coverage** across all modules:
-
-**Test Files:**
-- `test_cli.py` - Command-line interface (87 tests)
-- `test_client.py` - Main client API (42 tests)
-- `test_client_advanced.py` - Advanced client features (17 tests)
-- `test_models.py` - Data models (16 tests)
-- `test_cipher.py` - Cryptography (26 tests)
-- `test_kdf.py` - Key derivation (22 tests)
-- `test_session.py` - Session management (20 tests)
-- `test_http.py` - HTTP client (26 tests)
-- `test_blob.py` - Vault blob parsing (15 tests)
-- `test_blob_parsing.py` - Additional blob parsing (28 tests)
-- `test_xml_parser.py` - XML parsing (20 tests)
-- `test_exceptions.py` - Exception handling (10 tests)
-- `test_integration.py` - Live API tests (8 tests, optional)
-
-### Quick Start
-
+**Quick start:**
 ```bash
-# Install test dependencies
-pip install -e .[dev]
+# Install dev dependencies
+pip install -e ".[dev]"
 
-# Run all mock tests (default - fast & safe)
+# Run all tests
 pytest
 
-# Run with coverage report
+# With coverage
 pytest --cov=lastpass --cov-report=term-missing
-
-# Run verbose
-pytest -v
 ```
 
 ### Test Modes
 
-#### 1. Mock Mode (Default - Recommended for Development)
+**1. Mock Tests (Default)**
 
-Mock tests use the `responses` library to simulate API responses. No network access or credentials required.
-
-```bash
-# Run all mock tests
-pytest
-
-# With coverage
-pytest --cov=lastpass
-
-# Run specific module tests
-pytest tests/test_client.py
-
-# Run with pattern matching
-pytest -k "login"
-```
-
-**Benefits:**
-- ✅ Fast execution (< 10 seconds)
-- ✅ No credentials needed
-- ✅ Safe - doesn't access real vault
-- ✅ Can run offline
-- ✅ Consistent results
-
-#### 2. Live API Tests (Optional)
-
-Live tests interact with the real LastPass API. Use with a **test account only**.
+Fast, offline tests using mocked API responses. No credentials needed.
 
 ```bash
-# Run only live tests
-pytest -m live --live --username=test@example.com --password=testpass
-
-# With coverage
-pytest -m live --live --username=test@example.com --password=testpass --cov=lastpass
+pytest                    # Run all mock tests
+pytest -v                 # Verbose output
+pytest tests/test_client.py  # Specific test file
 ```
 
-**⚠️ Important:**
-- Use a test account, not your personal vault
-- Tests read your vault but don't modify data
-- May require email verification (see below)
-- Subject to LastPass rate limiting
+**2. Live API Tests**
 
-#### 3. Complete Coverage Mode (Mock + Live)
-
-For comprehensive testing and maximum coverage:
+Tests against real LastPass API. **Use a test account!**
 
 ```bash
-# Run ALL tests for full coverage report
-pytest tests/ --live --username=test@example.com --password=testpass --cov=lastpass
-
-# Expected output: 279 passed, 95% coverage
+pytest --live --username test@example.com --password testpass
 ```
 
-### Email Verification Handling
-
-If LastPass detects a new device/location, it requires email verification:
-
-**When you see this error:**
-```
-GoogleAuthVerificatorResponse ... unifiedloginresult
+If email verification is required:
+```bash
+pytest --live --username test@example.com --password testpass --otp 123456
 ```
 
-**Solution:**
-1. Check your email for LastPass verification code
-2. Re-run tests with `--otp` flag:
+**3. Complete Test Suite**
+
+Run both mock and live tests for full coverage:
 
 ```bash
-pytest --live --username=test@example.com --password=testpass --otp=123456
+pytest tests/ --live --username test@example.com --password testpass --cov=lastpass
 ```
 
-**Using environment variables:**
-```bash
-export LASTPASS_USERNAME=test@example.com
-export LASTPASS_PASSWORD=testpass
-export LASTPASS_OTP=123456
-pytest --live
+Expected: **331+ tests passed, 95% coverage**
+
+### Test Structure
+
+- `tests/test_cli.py` - CLI interface (87 tests)
+- `tests/test_client.py` - Client API (42 tests)
+- `tests/test_cipher.py` - Cryptography (26 tests)
+- `tests/test_models.py` - Data models (16 tests)
+- `tests/test_http.py` - HTTP client (26 tests)
+- And 8 more test files...
+
+### Coverage Report
+
+Current coverage: **95%**
+
+```
+Module                Coverage
+--------------------------------
+lastpass/__init__.py   100%
+lastpass/cli.py         99%
+lastpass/http.py        96%
+lastpass/cipher.py      96%
+lastpass/models.py      95%
+lastpass/client.py      93%
+lastpass/session.py     93%
+lastpass/blob.py        89%
+--------------------------------
+TOTAL                   95%
 ```
 
-The OTP is typically a 6-digit code and expires after a few minutes.
+## Contributing
 
-### Common Test Commands
+We welcome contributions! Here's how to get started:
+
+### Development Setup
+
+1. **Fork and clone**
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/lastpass-python.git
+   cd lastpass-python
+   ```
+
+2. **Install dev dependencies**
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+3. **Create a branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+### Guidelines
+
+**Code Quality**
+- Follow PEP 8 style guidelines
+- Add type hints to new functions
+- Document public APIs with docstrings
+- Keep functions focused and testable
+
+**Testing Requirements** ⚠️
+- **All tests must pass** - Run `pytest` before submitting
+- **Maintain 95% coverage** - Add tests for new code
+- **Include both unit and integration tests** when applicable
 
 ```bash
-# Basic runs
-pytest                              # All mock tests
-pytest -v                           # Verbose output
-pytest -x                           # Stop on first failure
-pytest -s                           # Show print statements
-
-# Coverage
+# Verify before submitting
 pytest --cov=lastpass --cov-report=term-missing
-pytest --cov=lastpass --cov-report=html  # HTML report in htmlcov/
 
-# Specific tests
-pytest tests/test_client.py                           # One file
-pytest tests/test_client.py::TestLogin                # One class
-pytest tests/test_client.py::TestLogin::test_login_success  # One test
-
-# Pattern matching
-pytest -k "login"                   # Tests with "login" in name
-pytest -k "not live"                # Skip live tests
-
-# Debugging
-pytest -l                           # Show local variables on failure
-pytest --pdb                        # Drop into debugger on failure
-pytest --lf                         # Re-run only failed tests
+# Expected output:
+# ========== 279 passed in X.XXs ==========
+# TOTAL coverage: 95%
 ```
 
-### Test Dependencies
+**Commit Messages**
+- Use clear, descriptive commit messages
+- Reference issue numbers when applicable
+- Example: `fix: handle rate limiting in HTTP client (#123)`
 
-Install with development dependencies:
+### Submitting Changes
 
-```bash
-pip install -e .[dev]
+1. **Run tests**
+   ```bash
+   pytest --cov=lastpass
+   ```
+   Ensure: ✅ All tests pass ✅ Coverage ≥ 95%
+
+2. **Push your branch**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+3. **Open a Pull Request**
+   - Describe your changes clearly
+   - Reference any related issues
+   - Include test results/coverage report
+
+### Areas for Contribution
+
+- 🐛 Bug fixes and improvements
+- 📝 Documentation enhancements  
+- 🧪 Additional test coverage
+- ✨ New features (discuss in an issue first)
+- 🔧 Code refactoring
+- 🌍 Platform compatibility
+
+### Getting Help
+
+- 📖 Check existing documentation
+- 💬 Open an issue for discussion
+- 🔍 Search closed issues for similar problems
+
+### Code of Conduct
+
+- Be respectful and inclusive
+- Welcome newcomers
+- Focus on constructive feedback
+- Assume good intentions
+
+## Comparison with LastPass CLI (C Implementation)
+
+### ✅ Implemented Features
+
+This Python implementation now covers **all major operations** from the C CLI:
+
+| Feature | C CLI | Python | Status |
+|---------|-------|--------|--------|
+| **Authentication** |
+| Login with username/password | ✅ | ✅ | Full support |
+| Two-factor auth (OTP) | ✅ | ✅ | Full support |
+| Trust device | ✅ | ✅ | Full support |
+| Logout | ✅ | ✅ | Full support |
+| Session management | ✅ | ✅ | Full support |
+| **Vault Operations** |
+| List accounts (`ls`) | ✅ | ✅ | Full support |
+| Show account (`show`) | ✅ | ✅ | Full support |
+| Search/filter accounts | ✅ | ✅ | Full support |
+| Sync vault | ✅ | ✅ | Full support |
+| Password generation (`generate`) | ✅ | ✅ | Full support |
+| Status check | ✅ | ✅ | Full support |
+| **Write Operations** |
+| Add account (`add`) | ✅ | ✅ | Full support |
+| Edit account (`edit`) | ✅ | ✅ | Full support |
+| Delete account (`rm`) | ✅ | ✅ | Full support |
+| Move account (`mv`) | ✅ | ✅ | Full support |
+| Duplicate account (`duplicate`) | ✅ | ✅ | Full support |
+| **Data Access** |
+| Account fields | ✅ | ✅ | Full support |
+| Custom fields | ✅ | ✅ | Full support |
+| Secure notes | ✅ | ✅ | Full support |
+| Shared folders | ✅ | ✅ | Full support |
+| Groups/folders | ✅ | ✅ | Full support |
+| **Cryptography** |
+| AES-256-CBC encryption | ✅ | ✅ | Full support |
+| PBKDF2 key derivation | ✅ | ✅ | Full support |
+| RSA for shared folders | ✅ | ✅ | Full support |
+| **Output Formats** |
+| Standard text output | ✅ | ✅ | Full support |
+| Long listing format | ✅ | ✅ | Full support |
+| JSON output | ✅ | ✅ | Full support |
+| Clipboard support | ✅ | ✅ | Full support |
+
+### ❌ Not Implemented
+
+The following **advanced features** from the C CLI are **not implemented**:
+
+| Feature | C CLI | Python | Notes |
+|---------|-------|--------|-------|
+| Change master password (`passwd`) | ✅ | ❌ | High risk operation |
+| Share management | ✅ | ❌ | Complex, requires share API |
+| Import accounts | ✅ | ❌ | CSV import not implemented |
+| Export accounts | ✅ | ✅ | Partial (JSON only, no CSV) |
+| Attachments download | ✅ | ❌ | API exists, not in CLI |
+| Agent/daemon mode | ✅ | ❌ | Not planned |
+
+### 🎯 Design Philosophy
+
+**Python Implementation Focus:**
+- ✅ **Complete CRUD operations** - Create, Read, Update, Delete accounts
+- ✅ **Safe vault management** - All standard operations supported
+- ✅ **Automation-friendly** - Clean Python API for scripts
+- ✅ **Cross-platform** - Pure Python, no compilation needed
+- ✅ **Well-tested** - Comprehensive test coverage
+
+**Excluded Operations:**
+- Master password changes (use web app for security)
+- Advanced share management (complex API)
+- CSV import/export (JSON supported)
+- Agent mode (session-based auth is simpler)
+
+### 📊 Feature Coverage Summary
+
+```
+Core Functionality:     100% ✅
+Read Operations:        100% ✅  
+Write Operations:       100% ✅ (add, edit, delete, move, duplicate)
+Advanced Features:       30% ⚠️  (passwd, shares, import not implemented)
+Cryptography:           100% ✅
+Authentication:         100% ✅
+Session Management:     100% ✅
+Test Coverage:           95% ✅
 ```
 
-Required packages:
-- `pytest >= 7.0.0` - Test framework
-- `pytest-cov >= 3.0.0` - Coverage reporting
-- `pytest-mock >= 3.10.0` - Mocking utilities
-- `responses >= 0.22.0` - HTTP request mocking
+### 🚀 Python-Specific Advantages
 
-### Writing Tests
+Features **only** in the Python implementation:
 
-**Example mock test:**
+- 🐍 **Native Python API** - Use as a library in your Python projects
+- 📦 **No compilation** - `pip install` and you're ready
+- 🔧 **Easy to extend** - Pure Python, modify for your needs
+- 🧪 **Comprehensive tests** - 331+ tests vs minimal C tests
+- 📚 **Better documentation** - Docstrings, type hints, examples
+- 🌐 **Modern architecture** - Uses `requests`, dataclasses, type hints
 
-```python
-import pytest
-import responses
-from lastpass.client import LastPassClient
+### 💡 Use Cases
 
-class TestFeature:
-    @responses.activate
-    def test_mock_request(self, temp_config_dir):
-        # Mock HTTP response
-        responses.add(
-            responses.POST,
-            "https://lastpass.com/login.php",
-            body=b"<ok sessionid='abc123' />",
-            status=200,
-        )
-        
-        # Test the feature
-        client = LastPassClient(config_dir=temp_config_dir)
-        session = client.login("user@test.com", "password")
-        assert session.session_id == "abc123"
-```
+**Perfect for:**
+- ✅ Retrieving passwords in automation scripts
+- ✅ Integration with deployment pipelines
+- ✅ Password lookups in Python applications
+- ✅ Auditing vault contents
+- ✅ Bulk password exports
+- ✅ Cross-platform password access
 
-**Example live test:**
+**Not suitable for:**
+- ❌ Creating/modifying vault entries (use web app)
+- ❌ Account management workflows
+- ❌ Complex share management
+- ❌ Import/migration operations
 
-```python
-@pytest.mark.live
-class TestLiveFeature:
-    def test_real_api(self, logged_in_client):
-        # Tests against real LastPass API
-        accounts = logged_in_client.get_accounts()
-        assert isinstance(accounts, list)
-```
+### 🔮 Future Considerations
 
-### Available Test Fixtures
+If there's demand, write operations could be added:
+- `add` - Create new accounts
+- `edit` - Modify existing accounts  
+- `rm` - Delete accounts
+- `import` - Import from CSV
 
-**Common Fixtures:**
-- `temp_config_dir` - Temporary directory for config files
-- `mock_encryption_key` - Standard 32-byte AES key for testing
-- `mock_iterations` - Standard iteration count (5000)
+However, the current focus is on **rock-solid read operations** with excellent test coverage.
 
-**Live Test Fixtures:**
-- `live_credentials` - Dict with username, password, OTP from CLI args
-- `logged_in_client` - Pre-authenticated client for live tests
+## License
 
-### Test Coverage Report
+This project is licensed under the **GNU General Public License v2.0 or later (GPLv2+)**.
 
-Current coverage: **95%** across all modules
+See [LICENSE](LICENSE) for full details.
 
-```
-Module                 Statements   Coverage
---------------------------------------------
-lastpass/__init__.py        5       100%
-lastpass/blob.py          164        89%
-lastpass/cipher.py         98        96%
-lastpass/cli.py           192        99%
-lastpass/client.py        147        93%
-lastpass/exceptions.py     14       100%
-lastpass/http.py           83        96%
-lastpass/kdf.py            15       100%
-lastpass/models.py         64        95%
-lastpass/session.py        56        93%
-lastpass/xml_parser.py     31       100%
---------------------------------------------
-TOTAL                     869        95%
-```
+## Security
 
-### Continuous Integration
+- **Master Password**: Never stored or logged
+- **Encryption**: AES-256-CBC with PBKDF2-SHA256
+- **Session Data**: Encrypted at rest (mode 0600)
+- **Memory Safety**: Sensitive data cleared when possible
 
-For CI/CD pipelines, use mock tests only:
+## Acknowledgments
 
-```yaml
-# .github/workflows/test.yml
-- name: Run tests
-  run: |
-    pip install -e .[dev]
-    pytest --cov=lastpass --cov-report=xml
-
-- name: Upload coverage
-  uses: codecov/codecov-action@v3
-```
-
-To include live tests in CI, use repository secrets for credentials:
-
-```yaml
-- name: Run all tests
-  env:
-    LASTPASS_USERNAME: ${{ secrets.LASTPASS_USERNAME }}
-    LASTPASS_PASSWORD: ${{ secrets.LASTPASS_PASSWORD }}
-    LASTPASS_OTP: ${{ secrets.LASTPASS_OTP }}
-  run: |
-    pytest tests/ --live --cov=lastpass
-```
-
-## Credits
-
-- Original LastPass CLI by LastPass
+- Original [LastPass CLI](https://github.com/lastpass/lastpass-cli) by LastPass
 - Python implementation by the community
 
-## Related Projects
+## Disclaimer
 
-- [lastpass-cli](https://github.com/lastpass/lastpass-cli) - Original C implementation
-- [lastpass-python](https://github.com/konomae/lastpass-python) - Alternative Python library
+This is an **independent implementation** and is not officially supported by LastPass/LogMeIn. Use at your own risk.

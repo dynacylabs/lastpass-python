@@ -152,3 +152,41 @@ class HTTPClient:
         
         if status != 200:
             raise NetworkException(f"Failed to delete account: HTTP {status}")
+    
+    def add_account(self, session: Session, account_data: Dict[str, Any]) -> str:
+        """Add a new account to the vault. Returns account ID."""
+        data = {
+            "extjs": "1",
+            "method": "cr",
+            **account_data
+        }
+        
+        content, status = self.post("show_website.php", data, session=session)
+        
+        if status != 200:
+            raise NetworkException(f"Failed to add account: HTTP {status}")
+        
+        # Parse response to get account ID
+        response = content.decode('utf-8', errors='ignore')
+        # Response format: {"aid":"account_id",...}
+        if '"aid":"' in response:
+            aid_start = response.find('"aid":"') + 7
+            aid_end = response.find('"', aid_start)
+            return response[aid_start:aid_end]
+        
+        return ""
+    
+    def update_account(self, session: Session, account_id: str, 
+                      account_data: Dict[str, Any]) -> None:
+        """Update an existing account"""
+        data = {
+            "extjs": "1",
+            "method": "save",
+            "aid": account_id,
+            **account_data
+        }
+        
+        content, status = self.post("show_website.php", data, session=session)
+        
+        if status != 200:
+            raise NetworkException(f"Failed to update account: HTTP {status}")

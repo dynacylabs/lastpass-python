@@ -386,3 +386,183 @@ class LastPassClient:
         if not account:
             raise AccountNotFoundException(f"Account not found: {query}")
         return account.notes
+    
+    def add_account(self, name: str, username: str = "", password: str = "",
+                   url: str = "", notes: str = "", group: str = "",
+                   fields: Optional[Dict[str, str]] = None) -> str:
+        """
+        Add a new account to the vault
+        
+        Args:
+            name: Account name
+            username: Username/email
+            password: Password
+            url: Website URL
+            notes: Notes
+            group: Group/folder name
+            fields: Custom fields as dict
+        
+        Returns:
+            Account ID of created account
+        
+        Raises:
+            InvalidSessionException: If not logged in
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        from . import cipher
+        
+        # Encrypt account data
+        account_data = {
+            "name": cipher.aes_encrypt(name, self.encryption_key).decode('utf-8'),
+            "username": cipher.aes_encrypt(username, self.encryption_key).decode('utf-8') if username else "",
+            "password": cipher.aes_encrypt(password, self.encryption_key).decode('utf-8') if password else "",
+            "url": cipher.aes_encrypt(url, self.encryption_key).decode('utf-8') if url else "",
+            "extra": cipher.aes_encrypt(notes, self.encryption_key).decode('utf-8') if notes else "",
+            "grouping": cipher.aes_encrypt(group, self.encryption_key).decode('utf-8') if group else "",
+        }
+        
+        # Add custom fields if provided
+        if fields:
+            for field_name, field_value in fields.items():
+                encrypted_name = cipher.aes_encrypt(field_name, self.encryption_key).decode('utf-8')
+                encrypted_value = cipher.aes_encrypt(field_value, self.encryption_key).decode('utf-8')
+                account_data[f"customfield_{encrypted_name}"] = encrypted_value
+        
+        account_id = self.http.add_account(self.session, account_data)
+        
+        # Sync to refresh vault
+        self.sync(force=True)
+        
+        return account_id
+    
+    def update_account(self, query: str, name: Optional[str] = None,
+                      username: Optional[str] = None, password: Optional[str] = None,
+                      url: Optional[str] = None, notes: Optional[str] = None,
+                      group: Optional[str] = None) -> None:
+        """
+        Update an existing account
+        
+        Args:
+            query: Account query (name, ID, or URL)
+            name: New name (if provided)
+            username: New username (if provided)
+            password: New password (if provided)
+            url: New URL (if provided)
+            notes: New notes (if provided)
+            group: New group (if provided)
+        
+        Raises:
+            AccountNotFoundException: If account not found
+            InvalidSessionException: If not logged in
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        account = self.find_account(query, sync=True)
+        if not account:
+            raise AccountNotFoundException(f"Account not found: {query}")
+        
+        from . import cipher
+        
+        # Build update data with only changed fields
+        account_data = {}
+        
+        if name is not None:
+            account_data["name"] = cipher.aes_encrypt(name, self.encryption_key).decode('utf-8')
+        if username is not None:
+            account_data["username"] = cipher.aes_encrypt(username, self.encryption_key).decode('utf-8')
+        if password is not None:
+            account_data["password"] = cipher.aes_encrypt(password, self.encryption_key).decode('utf-8')
+        if url is not None:
+            account_data["url"] = cipher.aes_encrypt(url, self.encryption_key).decode('utf-8')
+        if notes is not None:
+            account_data["extra"] = cipher.aes_encrypt(notes, self.encryption_key).decode('utf-8')
+            if group is not None:
+                account_data["grouping"] = cipher.aes_encrypt(group, self.encryption_key).decode('utf-8')
+        
+        self.http.update_account(self.session, account.id, account_data)
+        
+        # Sync to refresh vault
+        self.sync(force=True)
+    
+    def delete_account(self, query: str) -> None:
+        """
+        Delete an account from the vault
+        
+        Args:
+            query: Account query (name, ID, or URL)
+        
+        Raises:
+            AccountNotFoundException: If account not found
+            InvalidSessionException: If not logged in
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        account = self.find_account(query, sync=True)
+        if not account:
+            raise AccountNotFoundException(f"Account not found: {query}")
+        
+        share_id = account.share.id if account.share else None
+        self.http.delete_account(self.session, account.id, share_id)
+        
+        # Sync to refresh vault
+        self.sync(force=True)
+    
+    def duplicate_account(self, query: str, new_name: Optional[str] = None) -> str:
+        """
+        Duplicate an existing account
+        
+        Args:
+            query: Account query (name, ID, or URL)
+            new_name: Name for the duplicate (defaults to "Copy of [original name]")
+        
+        Returns:
+            Account ID of duplicated account
+        
+        Raises:
+            AccountNotFoundException: If account not found
+            InvalidSessionException: If not logged in
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        account = self.find_account(query, sync=True)
+        if not account:
+            raise AccountNotFoundException(f"Account not found: {query}")
+        
+        # Generate new name if not provided
+        if new_name is None:
+            new_name = f"Copy of {account.name}"
+        
+        # Create duplicate with same data
+        fields = {}
+        if account.fields:
+            for field in account.fields:
+                fields[field.name] = field.value
+        
+        return self.add_account(
+            name=new_name,
+            username=account.username,
+            password=account.password,
+            url=account.url,
+            notes=account.notes,
+            group=account.group,
+            fields=fields
+        )
+    
+    def move_account(self, query: str, new_group: str) -> None:
+        """
+        Move an account to a different group/folder
+        
+        Args:
+            query: Account query (name, ID, or URL)
+            new_group: New group/folder name
+        
+        Raises:
+            AccountNotFoundException: If account not found
+            InvalidSessionException: If not logged in
+        """
+        self.update_account(query, group=new_group)

@@ -1,0 +1,18 @@
+[run]
+source = haveibeenpwned
+omit = 
+    */tests/*
+    */test_*.py
+    setup.py
+    */__pycache__/*
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml

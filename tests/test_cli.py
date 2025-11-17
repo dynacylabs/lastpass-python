@@ -653,6 +653,365 @@ class TestCLIHelpers:
                         assert "Could not copy to clipboard" in mock_stderr.getvalue()
 
 
+class TestCLIWriteCommands:
+    """Test CLI write commands (add, edit, rm, duplicate, mv)"""
+    
+    def test_add_command_basic(self, cli, mock_client):
+        """Test add command with basic arguments"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.add_account.return_value = "12345"
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            with patch('getpass.getpass', return_value='testpass'):
+                result = cli.run([
+                    'add',
+                    'Test Account',
+                    '--username', 'testuser',
+                    '--url', 'https://example.com',
+                ])
+                
+                assert result == 0
+                mock_client.add_account.assert_called_once()
+                assert "Added account: Test Account" in mock_stdout.getvalue()
+    
+    def test_add_command_with_generate(self, cli, mock_client):
+        """Test add command with password generation"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.add_account.return_value = "12345"
+        mock_client.generate_password.return_value = "GeneratedPass123!"
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run([
+                'add',
+                'Test Account',
+                '--username', 'testuser',
+                '--generate', '16',
+            ])
+            
+            assert result == 0
+            mock_client.generate_password.assert_called_once_with(length=16)
+            mock_client.add_account.assert_called_once()
+            # Check that a password was generated (not empty)
+            call_args = mock_client.add_account.call_args
+            assert call_args[1]['password'] == 'GeneratedPass123!'
+    
+    def test_add_command_with_group(self, cli, mock_client):
+        """Test add command with group"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.add_account.return_value = "12345"
+        
+        with patch('getpass.getpass', return_value='testpass'):
+            result = cli.run([
+                'add',
+                'Work Account',
+                '--username', 'workuser',
+                '--group', 'Work\\Websites',
+            ])
+            
+            assert result == 0
+            call_args = mock_client.add_account.call_args
+            assert call_args[1]['group'] == 'Work\\Websites'
+    
+    def test_add_command_with_notes(self, cli, mock_client):
+        """Test add command with notes"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.add_account.return_value = "12345"
+        
+        with patch('getpass.getpass', return_value='testpass'):
+            result = cli.run([
+                'add',
+                'Test Account',
+                '--username', 'testuser',
+                '--notes', 'Important notes here',
+            ])
+            
+            assert result == 0
+            call_args = mock_client.add_account.call_args
+            assert call_args[1]['notes'] == 'Important notes here'
+    
+    def test_add_command_not_logged_in(self, cli, mock_client):
+        """Test add command when not logged in"""
+        mock_client.is_logged_in.return_value = False
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['add', 'Test Account', '--username', 'user'])
+            
+            assert result == 1
+            assert "not logged in" in mock_stderr.getvalue()
+            mock_client.add_account.assert_not_called()
+    
+    def test_edit_command_basic(self, cli, mock_client):
+        """Test edit command with basic arguments"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run([
+                'edit',
+                'GitHub',
+                '--username', 'newuser',
+            ])
+            
+            assert result == 0
+            mock_client.update_account.assert_called_once()
+            call_args = mock_client.update_account.call_args
+            assert call_args[0][0] == 'GitHub'
+            assert call_args[1]['username'] == 'newuser'
+    
+    def test_edit_command_multiple_fields(self, cli, mock_client):
+        """Test edit command updating multiple fields"""
+        mock_client.is_logged_in.return_value = True
+        
+        result = cli.run([
+            'edit',
+            'GitHub',
+            '--name', 'GitHub Updated',
+            '--username', 'newuser',
+            '--password', 'newpass',
+            '--url', 'https://new.github.com',
+            '--notes', 'Updated notes',
+        ])
+        
+        assert result == 0
+        call_args = mock_client.update_account.call_args
+        assert call_args[1]['name'] == 'GitHub Updated'
+        assert call_args[1]['username'] == 'newuser'
+        assert call_args[1]['password'] == 'newpass'
+        assert call_args[1]['url'] == 'https://new.github.com'
+        assert call_args[1]['notes'] == 'Updated notes'
+    
+    def test_edit_command_with_group(self, cli, mock_client):
+        """Test edit command with group change"""
+        mock_client.is_logged_in.return_value = True
+        
+        result = cli.run([
+            'edit',
+            'GitHub',
+            '--group', 'Work',
+        ])
+        
+        assert result == 0
+        call_args = mock_client.update_account.call_args
+        assert call_args[1]['group'] == 'Work'
+    
+    def test_edit_command_not_found(self, cli, mock_client):
+        """Test edit command for non-existent account"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.update_account.side_effect = AccountNotFoundException("Not found")
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['edit', 'NonExistent', '--username', 'newuser'])
+            
+            assert result == 1
+            assert "Not found" in mock_stderr.getvalue()
+    
+    def test_edit_command_not_logged_in(self, cli, mock_client):
+        """Test edit command when not logged in"""
+        mock_client.is_logged_in.return_value = False
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['edit', 'GitHub', '--username', 'newuser'])
+            
+            assert result == 1
+            assert "not logged in" in mock_stderr.getvalue()
+            mock_client.update_account.assert_not_called()
+    
+    def test_rm_command_with_confirmation(self, cli, mock_client):
+        """Test rm command with user confirmation"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            with patch('builtins.input', return_value='y'):
+                result = cli.run(['rm', 'GitHub'])
+                
+                assert result == 0
+                mock_client.delete_account.assert_called_once_with('GitHub')
+                assert "Deleted account: GitHub" in mock_stdout.getvalue()
+    
+    def test_rm_command_cancel_confirmation(self, cli, mock_client):
+        """Test rm command cancelled by user"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            with patch('builtins.input', return_value='n'):
+                result = cli.run(['rm', 'GitHub'])
+                
+                assert result == 0
+                mock_client.delete_account.assert_not_called()
+                assert "Cancelled" in mock_stdout.getvalue()
+    
+    def test_rm_command_with_force(self, cli, mock_client):
+        """Test rm command with --force flag"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run(['rm', 'GitHub', '--force'])
+            
+            assert result == 0
+            mock_client.delete_account.assert_called_once_with('GitHub')
+            assert "Deleted account: GitHub" in mock_stdout.getvalue()
+    
+    def test_rm_command_not_found(self, cli, mock_client):
+        """Test rm command for non-existent account"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.delete_account.side_effect = AccountNotFoundException("Not found")
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            with patch('builtins.input', return_value='y'):
+                result = cli.run(['rm', 'NonExistent'])
+                
+                assert result == 1
+                assert "Not found" in mock_stderr.getvalue()
+    
+    def test_rm_command_not_logged_in(self, cli, mock_client):
+        """Test rm command when not logged in"""
+        mock_client.is_logged_in.return_value = False
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['rm', 'GitHub', '--force'])
+            
+            assert result == 1
+            assert "not logged in" in mock_stderr.getvalue()
+            mock_client.delete_account.assert_not_called()
+    
+    def test_duplicate_command_basic(self, cli, mock_client):
+        """Test duplicate command with basic arguments"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.duplicate_account.return_value = "99999"
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run(['duplicate', 'GitHub'])
+            
+            assert result == 0
+            mock_client.duplicate_account.assert_called_once()
+            call_args = mock_client.duplicate_account.call_args
+            assert call_args[0][0] == 'GitHub'
+            assert "Duplicated account" in mock_stdout.getvalue()
+    
+    def test_duplicate_command_with_name(self, cli, mock_client):
+        """Test duplicate command with custom name"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.duplicate_account.return_value = "99999"
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run(['duplicate', 'GitHub', '--name', 'GitHub Copy'])
+            
+            assert result == 0
+            call_args = mock_client.duplicate_account.call_args
+            assert call_args[0][0] == 'GitHub'
+            # Second positional arg is new_name
+            assert call_args[0][1] == 'GitHub Copy'
+    
+    def test_duplicate_command_not_found(self, cli, mock_client):
+        """Test duplicate command for non-existent account"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.duplicate_account.side_effect = AccountNotFoundException("Not found")
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['duplicate', 'NonExistent'])
+            
+            assert result == 1
+            assert "Not found" in mock_stderr.getvalue()
+    
+    def test_duplicate_command_not_logged_in(self, cli, mock_client):
+        """Test duplicate command when not logged in"""
+        mock_client.is_logged_in.return_value = False
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['duplicate', 'GitHub'])
+            
+            assert result == 1
+            assert "not logged in" in mock_stderr.getvalue()
+            mock_client.duplicate_account.assert_not_called()
+    
+    def test_mv_command_basic(self, cli, mock_client):
+        """Test mv command with basic arguments"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run(['mv', 'GitHub', 'Work\\Development'])
+            
+            assert result == 0
+            mock_client.move_account.assert_called_once()
+            call_args = mock_client.move_account.call_args
+            assert call_args[0][0] == 'GitHub'
+            assert call_args[0][1] == 'Work\\Development'
+            assert "Moved account 'GitHub'" in mock_stdout.getvalue()
+    
+    def test_mv_command_to_root(self, cli, mock_client):
+        """Test mv command moving to root folder"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            result = cli.run(['mv', 'GitHub', ''])
+            
+            assert result == 0
+            call_args = mock_client.move_account.call_args
+            assert call_args[0][1] == ''
+    
+    def test_mv_command_not_found(self, cli, mock_client):
+        """Test mv command for non-existent account"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.move_account.side_effect = AccountNotFoundException("Not found")
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['mv', 'NonExistent', 'Work'])
+            
+            assert result == 1
+            assert "Not found" in mock_stderr.getvalue()
+    
+    def test_mv_command_not_logged_in(self, cli, mock_client):
+        """Test mv command when not logged in"""
+        mock_client.is_logged_in.return_value = False
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['mv', 'GitHub', 'Work'])
+            
+            assert result == 1
+            assert "not logged in" in mock_stderr.getvalue()
+            mock_client.move_account.assert_not_called()
+
+
+class TestCLIEdgeCases:
+    """Test CLI edge cases"""
+    
+    def test_add_command_exception_handling(self, cli, mock_client):
+        """Test add command handles exceptions"""
+        mock_client.is_logged_in.return_value = True
+        mock_client.add_account.side_effect = Exception("Database error")
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            result = cli.run(['add', 'test', '--username', 'user', '--password', 'pass'])
+            
+            assert result == 1
+            assert "Failed to add account" in mock_stderr.getvalue()
+            assert "Database error" in mock_stderr.getvalue()
+    
+    def test_edit_command_with_no_changes(self, cli, mock_client):
+        """Test edit command with no changes specified"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            # Run edit with no update flags
+            result = cli.run(['edit', 'GitHub'])
+            
+            assert result == 1
+            assert "No changes specified" in mock_stderr.getvalue()
+            mock_client.update_account.assert_not_called()
+    
+    def test_edit_command_with_empty_password_prompts(self, cli, mock_client):
+        """Test edit command with empty password string prompts for input"""
+        mock_client.is_logged_in.return_value = True
+        
+        with patch('getpass.getpass', return_value='prompted_password'):
+            result = cli.run(['edit', 'GitHub', '--password', ''])
+            
+            assert result == 0
+            # Should have called update_account with prompted password
+            mock_client.update_account.assert_called_once()
+            call_kwargs = mock_client.update_account.call_args[1]
+            assert call_kwargs['password'] == 'prompted_password'
+
+
 class TestMain:
     """Test main entry point"""
     

@@ -124,6 +124,48 @@ class CLI:
         sync_parser = subparsers.add_parser('sync', help='Sync vault from server')
         sync_parser.set_defaults(func=self.cmd_sync)
         
+        # Add
+        add_parser = subparsers.add_parser('add', help='Add new account')
+        add_parser.add_argument('name', help='Account name')
+        add_parser.add_argument('--username', default='', help='Username')
+        add_parser.add_argument('--password', default='', help='Password (leave empty to prompt)')
+        add_parser.add_argument('--url', default='', help='Website URL')
+        add_parser.add_argument('--notes', default='', help='Notes')
+        add_parser.add_argument('--group', default='', help='Group/folder name')
+        add_parser.add_argument('--generate', type=int, metavar='LENGTH',
+                              help='Generate password of specified length')
+        add_parser.set_defaults(func=self.cmd_add)
+        
+        # Edit
+        edit_parser = subparsers.add_parser('edit', help='Edit existing account')
+        edit_parser.add_argument('query', help='Account name, ID, or URL')
+        edit_parser.add_argument('--name', help='New name')
+        edit_parser.add_argument('--username', help='New username')
+        edit_parser.add_argument('--password', help='New password (leave empty to prompt)')
+        edit_parser.add_argument('--url', help='New URL')
+        edit_parser.add_argument('--notes', help='New notes')
+        edit_parser.add_argument('--group', help='New group/folder')
+        edit_parser.set_defaults(func=self.cmd_edit)
+        
+        # Remove
+        rm_parser = subparsers.add_parser('rm', help='Remove account')
+        rm_parser.add_argument('query', help='Account name, ID, or URL')
+        rm_parser.add_argument('--force', '-f', action='store_true',
+                             help='Skip confirmation')
+        rm_parser.set_defaults(func=self.cmd_rm)
+        
+        # Duplicate
+        duplicate_parser = subparsers.add_parser('duplicate', help='Duplicate account')
+        duplicate_parser.add_argument('query', help='Account name, ID, or URL')
+        duplicate_parser.add_argument('--name', help='Name for duplicate')
+        duplicate_parser.set_defaults(func=self.cmd_duplicate)
+        
+        # Move
+        mv_parser = subparsers.add_parser('mv', help='Move account to different group')
+        mv_parser.add_argument('query', help='Account name, ID, or URL')
+        mv_parser.add_argument('group', help='New group/folder name')
+        mv_parser.set_defaults(func=self.cmd_mv)
+        
         return parser
     
     def cmd_login(self, args) -> int:
@@ -254,6 +296,134 @@ class CLI:
             return 0
         except Exception as e:
             print(f"Sync failed: {e}", file=sys.stderr)
+            return 1
+    
+    def cmd_add(self, args) -> int:
+        """Handle add command"""
+        import getpass
+        
+        if not self.client.is_logged_in():
+            print("Error: not logged in", file=sys.stderr)
+            return 1
+        
+        try:
+            # Handle password
+            password = args.password
+            if args.generate:
+                password = self.client.generate_password(length=args.generate)
+                print(f"Generated password: {password}")
+            elif not password:
+                password = getpass.getpass("Password: ")
+            
+            # Add account
+            account_id = self.client.add_account(
+                name=args.name,
+                username=args.username,
+                password=password,
+                url=args.url,
+                notes=args.notes,
+                group=args.group
+            )
+            
+            print(f"Added account: {args.name}")
+            if account_id:
+                print(f"Account ID: {account_id}")
+            return 0
+        except Exception as e:
+            print(f"Failed to add account: {e}", file=sys.stderr)
+            return 1
+    
+    def cmd_edit(self, args) -> int:
+        """Handle edit command"""
+        import getpass
+        
+        if not self.client.is_logged_in():
+            print("Error: not logged in", file=sys.stderr)
+            return 1
+        
+        try:
+            # Build update dict with only provided fields
+            updates = {}
+            if args.name is not None:
+                updates['name'] = args.name
+            if args.username is not None:
+                updates['username'] = args.username
+            if args.password is not None:
+                if not args.password:  # Empty string means prompt
+                    updates['password'] = getpass.getpass("New password: ")
+                else:
+                    updates['password'] = args.password
+            if args.url is not None:
+                updates['url'] = args.url
+            if args.notes is not None:
+                updates['notes'] = args.notes
+            if args.group is not None:
+                updates['group'] = args.group
+            
+            if not updates:
+                print("No changes specified", file=sys.stderr)
+                return 1
+            
+            # Update account
+            self.client.update_account(args.query, **updates)
+            print(f"Updated account: {args.query}")
+            return 0
+        except Exception as e:
+            print(f"Failed to update account: {e}", file=sys.stderr)
+            return 1
+    
+    def cmd_rm(self, args) -> int:
+        """Handle rm command"""
+        if not self.client.is_logged_in():
+            print("Error: not logged in", file=sys.stderr)
+            return 1
+        
+        try:
+            # Confirm deletion unless --force
+            if not args.force:
+                response = input(f"Delete account '{args.query}'? (y/N): ")
+                if response.lower() != 'y':
+                    print("Cancelled")
+                    return 0
+            
+            # Delete account
+            self.client.delete_account(args.query)
+            print(f"Deleted account: {args.query}")
+            return 0
+        except Exception as e:
+            print(f"Failed to delete account: {e}", file=sys.stderr)
+            return 1
+    
+    def cmd_duplicate(self, args) -> int:
+        """Handle duplicate command"""
+        if not self.client.is_logged_in():
+            print("Error: not logged in", file=sys.stderr)
+            return 1
+        
+        try:
+            new_name = args.name if hasattr(args, 'name') and args.name else None
+            account_id = self.client.duplicate_account(args.query, new_name)
+            name = args.name if args.name else f"Copy of {args.query}"
+            print(f"Duplicated account: {name}")
+            if account_id:
+                print(f"New account ID: {account_id}")
+            return 0
+        except Exception as e:
+            print(f"Failed to duplicate account: {e}", file=sys.stderr)
+            return 1
+    
+    def cmd_mv(self, args) -> int:
+        """Handle mv command"""
+        if not self.client.is_logged_in():
+            print("Error: not logged in", file=sys.stderr)
+            return 1
+        
+        try:
+            self.client.move_account(args.query, args.group)
+            print(f"Moved account '{args.query}' to group '{args.group}'")
+            return 0
+        except Exception as e:
+            print(f"Failed to move account: {e}", file=sys.stderr)
             return 1
     
     def _format_account(self, account: Account) -> str:
