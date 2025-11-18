@@ -14,7 +14,8 @@ else:
 
 setup(
     name="lastpass-py",
-    version="1.0.0",
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     author="LastPass Python Contributors",
     description="Complete Python implementation of LastPass CLI with API",
     long_description=long_description,
