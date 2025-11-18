@@ -1,6 +1,6 @@
-# LastPass Python
+# lastpass-py
 
-[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/dynacylabs/lastpass-python)
+[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen.svg)](https://github.com/dynacylabs/lastpass-py)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-GPLv2+-blue.svg)](LICENSE)
 
@@ -29,11 +29,17 @@ A complete Python implementation of the LastPass CLI with a friendly API for pro
 
 ## Installation
 
+### From PyPI
+
+```bash
+pip install lastpass-py
+```
+
 ### From Source
 
 ```bash
-git clone https://github.com/dynacylabs/lastpass-python.git
-cd lastpass-python
+git clone https://github.com/dynacylabs/lastpass-py.git
+cd lastpass-py
 pip install -e .
 ```
 
@@ -586,8 +592,8 @@ We welcome contributions! Here's how to get started:
 
 1. **Fork and clone**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/lastpass-python.git
-   cd lastpass-python
+   git clone https://github.com/YOUR_USERNAME/lastpass-py.git
+   cd lastpass-py
    ```
 
 2. **Install dev dependencies**

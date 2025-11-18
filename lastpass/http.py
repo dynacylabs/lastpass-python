@@ -18,7 +18,7 @@ class HTTPClient:
         self.base_url = f"https://{server}"
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "lastpass-python-cli/1.0.0",
+            "User-Agent": "lpass-cli/1.0.0",
         })
     
     def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None,

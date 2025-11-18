@@ -13,13 +13,13 @@ else:
     long_description = "LastPass Python CLI and API Library"
 
 setup(
-    name="lastpass-python",
+    name="lastpass-py",
     version="1.0.0",
     author="LastPass Python Contributors",
     description="Complete Python implementation of LastPass CLI with API",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/lastpass/lastpass-python",
+    url="https://github.com/dynacylabs/lastpass-py",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

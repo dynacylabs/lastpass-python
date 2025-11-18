@@ -1,7 +1,7 @@
-include README_PYTHON.md
+include README.md
 include LICENSE
+include LICENSE.OpenSSL
 include requirements.txt
 include pyproject.toml
-recursive-include lastpass *.py
-recursive-include examples *.py
+recursive-include lastpass *.py py.typed
 recursive-include tests *.py

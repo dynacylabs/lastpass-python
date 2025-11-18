@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lastpass-python"
+name = "lastpass-py"
 version = "1.0.0"
 description = "Complete Python implementation of LastPass CLI with API"
 readme = "README.md"
@@ -46,9 +46,9 @@ dev = [
 lpass = "lastpass.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/lastpass/lastpass-python"
-Documentation = "https://github.com/lastpass/lastpass-python/blob/main/README.md"
-Repository = "https://github.com/lastpass/lastpass-python"
+Homepage = "https://github.com/dynacylabs/lastpass-py"
+Documentation = "https://github.com/dynacylabs/lastpass-py/blob/main/README.md"
+Repository = "https://github.com/dynacylabs/lastpass-py"
 
 [tool.black]
 line-length = 100
