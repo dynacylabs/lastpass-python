@@ -82,22 +82,24 @@ def notes_expand(account: Account) -> Optional[Account]:
         if not line and not current_field:
             continue
         
-            # Check if this is the Notes: section (rest of file is notes)
-            if line.startswith("Notes:"):
-                notes_value = line[6:].strip()
-                # Rest of content after "Notes:" goes into notes
-                remaining_lines = lines[i+1:]
-                if remaining_lines:
-                    if notes_value:
-                        expanded.notes = notes_value + '\n' + '\n'.join(remaining_lines)
-                    else:
-                        expanded.notes = '\n'.join(remaining_lines)
+        # Check if this is the Notes: section (rest of file is notes)
+        if line.startswith("Notes:"):
+            notes_value = line[6:].strip()
+            # Rest of content after "Notes:" goes into notes
+            remaining_lines = lines[i+1:]
+            if remaining_lines:
+                if notes_value:
+                    expanded.notes = notes_value + '\n' + '\n'.join(remaining_lines)
                 else:
-                    expanded.notes = notes_value
-                # Remove trailing newline
-                expanded.notes = expanded.notes.rstrip('\n')
-                notes_section_started = True
-                break        # Parse key:value line
+                    expanded.notes = '\n'.join(remaining_lines)
+            else:
+                expanded.notes = notes_value
+            # Remove trailing newline
+            expanded.notes = expanded.notes.rstrip('\n')
+            notes_section_started = True
+            break
+        
+        # Parse key:value line
         if ':' in line:
             colon_idx = line.index(':')
             key = line[:colon_idx]
@@ -122,7 +124,9 @@ def notes_expand(account: Account) -> Optional[Account]:
                 expanded.url = value
                 current_field = None
             elif key == "NoteType":
-                # Already handled
+                # Store as field for roundtrip
+                new_field = Field(name=key, value=value, type="text")
+                expanded.fields.append(new_field)
                 current_field = None
             else:
                 # Custom field

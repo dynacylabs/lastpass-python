@@ -881,8 +881,8 @@ class TestCLIEdgeCases:
         mock_client.is_logged_in.return_value = True
         
         with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
-            # Run edit with no update flags
-            result = cli.run(['edit', 'GitHub'])
+            # Run edit with no update flags in non-interactive mode
+            result = cli.run(['edit', 'GitHub', '--non-interactive'])
             
             assert result == 1
             assert "No changes specified" in mock_stderr.getvalue()

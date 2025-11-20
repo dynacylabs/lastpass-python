@@ -71,6 +71,11 @@ class LastPassClient:
         """Encryption key (same as decryption key in LastPass)"""
         return self.decryption_key
     
+    @encryption_key.setter
+    def encryption_key(self, value: Optional[bytes]) -> None:
+        """Set encryption key"""
+        self.decryption_key = value
+    
     def login(self, username: str, password: Optional[str] = None, 
               trust: bool = False, otp: Optional[str] = None,
               force: bool = False) -> None:
@@ -600,6 +605,7 @@ class LastPassClient:
         Raises:
             AccountNotFoundException: If account not found
             InvalidSessionException: If not logged in
+            LastPassException: If attachment not found
         """
         if not self.is_logged_in():
             raise InvalidSessionException("Not logged in")
@@ -607,6 +613,17 @@ class LastPassClient:
         account = self.find_account(query, sync=True)
         if not account:
             raise AccountNotFoundException(f"Account not found: {query}")
+        
+        # Check if attachment exists in account
+        attachment_found = False
+        for att in account.attachments:
+            if att.id == attachment_id or att.filename == attachment_id:
+                attachment_id = att.id  # Use ID if filename was provided
+                attachment_found = True
+                break
+        
+        if not attachment_found:
+            raise LastPassException(f"Attachment not found: {attachment_id}")
         
         # Get share ID if account is in a shared folder
         share_id = account.share.id if account.share else None
@@ -675,11 +692,22 @@ class LastPassClient:
         """
         import re
         
+        # Validate empty query for non-exact searches
+        if search_type in ['substring', 'fixed'] and not query:
+            return []
+        
+        # Validate regex pattern before iterating
+        if search_type == 'regex':
+            try:
+                re.compile(query, re.IGNORECASE)
+            except re.error as e:
+                raise LastPassException(f"Invalid regex pattern: {e}")
+        
         if sync:
             self.sync()
         
         if fields is None:
-            fields = ['name', 'id', 'fullname']
+            fields = ['name', 'id', 'fullname', 'username', 'url', 'notes']
         
         matches = []
         
@@ -701,9 +729,9 @@ class LastPassClient:
                         if pattern.search(field_value):
                             matches.append(account)
                             break
-                except re.error:
-                    # Invalid regex, fall back to substring
-                    pass
+                except re.error as e:
+                    # Invalid regex pattern
+                    raise LastPassException(f"Invalid regex pattern: {e}")
             
             elif search_type == 'substring':
                 # Substring match (case insensitive)
@@ -818,31 +846,33 @@ class LastPassClient:
         
         return None
     
-    def search_accounts_regex(self, query: str, sync: bool = True) -> List[Account]:
+    def search_accounts_regex(self, query: str, fields: Optional[List[str]] = None, sync: bool = True) -> List[Account]:
         """
         Search accounts using regex pattern
         
         Args:
             query: Regex pattern
+            fields: List of fields to search ('id', 'name', 'fullname', 'url', 'username')
             sync: Sync from server before searching
         
         Returns:
             List of matching accounts
         """
-        return self.search_accounts_advanced(query, search_type='regex', sync=sync)
+        return self.search_accounts_advanced(query, search_type='regex', fields=fields, sync=sync)
     
-    def search_accounts_fixed(self, query: str, sync: bool = True) -> List[Account]:
+    def search_accounts_fixed(self, query: str, fields: Optional[List[str]] = None, sync: bool = True) -> List[Account]:
         """
         Search accounts using fixed string (substring) matching
         
         Args:
             query: Search string
+            fields: List of fields to search ('id', 'name', 'fullname', 'url', 'username')
             sync: Sync from server before searching
         
         Returns:
             List of matching accounts
         """
-        return self.search_accounts_advanced(query, search_type='substring', sync=sync)
+        return self.search_accounts_advanced(query, search_type='substring', fields=fields, sync=sync)
     
     def create_share(self, share_name: str) -> str:
         """
@@ -1017,44 +1047,16 @@ class LastPassClient:
         
         Raises:
             InvalidSessionException: If not logged in
-            LoginFailedException: If current password is incorrect
+            NotImplementedError: Password change requires additional server-side implementation
         """
         if not self.is_logged_in():
             raise InvalidSessionException("Not logged in")
         
-        if not self.session or not self.session.uid:
-            raise InvalidSessionException("Session not properly initialized")
-        
-        username = self.session.uid
-        
-        # Get iteration counts
-        old_iterations = self.http.get_iterations(username)
-        
-        # Derive old keys to verify
-        old_login_key, old_decryption_key = derive_keys(username, current_password, old_iterations)
-        
-        # Verify current password is correct
-        if old_decryption_key != self.decryption_key:
-            raise LoginFailedException("Current password is incorrect")
-        
-        # Derive new keys (using same iteration count for now)
-        new_login_key, new_decryption_key = derive_keys(username, new_password, old_iterations)
-        
-        # Start password change
-        token = self.http.change_password_start(
-            self.session, username, old_login_key, new_login_key, old_iterations
+        raise NotImplementedError(
+            "Password change requires additional server-side implementation. "
+            "This operation requires re-encrypting the entire vault. "
+            "Please use the LastPass web interface or official clients."
         )
-        
-        # Complete password change
-        self.http.change_password_complete(
-            self.session, username, new_login_key, old_iterations, token
-        )
-        
-        # Update local decryption key
-        self.decryption_key = new_decryption_key
-        
-        # Re-save session with new key
-        self.session.save(new_decryption_key, self.config_dir)
     
     def export_to_csv(self, fields: Optional[List[str]] = None, 
                      output: Optional[TextIO] = None) -> str:
@@ -1182,3 +1184,76 @@ class LastPassClient:
             notes=notes_str,
             group=group,
         )
+    
+    def log_account_access(self, account_name_or_id: str) -> None:
+        """
+        Log access to an account (for compliance/audit tracking)
+        
+        Args:
+            account_name_or_id: Account name or ID to log access for
+        
+        Raises:
+            InvalidSessionException: If not logged in
+            AccountNotFoundException: If account not found
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        # Find the account
+        account = self.find_account(account_name_or_id, sync=False)
+        if not account:
+            raise AccountNotFoundException(f"Account not found: {account_name_or_id}")
+        
+        # Log access via HTTP
+        share_id = account.share.id if account.share else None
+        self.http.log_access(self.session, account.id, account.url, share_id)
+    
+    def batch_add_accounts(self, accounts: List[Dict[str, Any]]) -> List[str]:
+        """
+        Add multiple accounts in a batch operation
+        
+        Args:
+            accounts: List of account dictionaries with keys:
+                     name, username, password, url (optional), notes (optional), group (optional)
+        
+        Returns:
+            List of account IDs created
+        
+        Raises:
+            InvalidSessionException: If not logged in
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        # Use HTTP batch upload if available
+        result = self.http.batch_upload_accounts(self.session, accounts, self.encryption_key)
+        
+        # Sync to refresh local cache
+        self.sync()
+        
+        return result.get("account_ids", [])
+    
+    def change_master_password(self, old_password: str, new_password: str) -> None:
+        """
+        Change master password (alias for change_password)
+        
+        This operation requires re-encrypting the entire vault on the server side,
+        which is not yet fully implemented.
+        
+        Args:
+            old_password: Current master password
+            new_password: New master password
+        
+        Raises:
+            InvalidSessionException: If not logged in
+            NotImplementedError: Always raised - feature requires server-side vault re-encryption
+        """
+        if not self.is_logged_in():
+            raise InvalidSessionException("Not logged in")
+        
+        raise NotImplementedError(
+            "Master password change requires re-encrypting the entire vault, "
+            "which is a complex operation not yet fully implemented. "
+            "Please use the LastPass web interface or official clients."
+        )
+

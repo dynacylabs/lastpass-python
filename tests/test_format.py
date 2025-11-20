@@ -391,6 +391,7 @@ class TestGenerateWithAccount:
         mock_client.return_value = mock_instance
         mock_instance.is_logged_in.return_value = True
         mock_instance.generate_password.return_value = "GeneratedPass123"
+        mock_instance.find_account.return_value = None  # No existing account
         mock_instance.add_account.return_value = "123"
         
         cli = CLI()

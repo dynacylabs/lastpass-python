@@ -353,6 +353,7 @@ class TestUploadAttachment:
         client.session.id = "test_session"
         client._accounts = []
         client._shares = []
+        client.encryption_key = b"a" * 32  # Set encryption key for tests
         return client
     
     @pytest.fixture
@@ -383,7 +384,7 @@ class TestUploadAttachment:
         ]
     
     def test_upload_attachment_success(self, mock_client, sample_accounts):
-        """Test successful attachment upload"""
+        """Test uploading attachment successfully"""
         mock_client._accounts = sample_accounts
         mock_client._blob_loaded = True
         
@@ -400,7 +401,12 @@ class TestUploadAttachment:
             args = mock_upload.call_args[0]
             assert args[1] == "acc1"  # account ID
             assert args[2] == "document.pdf"
-            assert args[3] == b"PDF content"
+            # Verify the data was encrypted (it's no longer plaintext)
+            assert args[3] != b"PDF content"
+            # Verify it can be decrypted back to original
+            from lastpass import cipher
+            decrypted = cipher.aes_decrypt(args[3], mock_client.encryption_key)
+            assert decrypted == b"PDF content"
             assert args[4] is None  # no share ID
     
     def test_upload_attachment_to_shared_account(self, mock_client, sample_accounts):
@@ -452,6 +458,7 @@ class TestLogAccountAccess:
         client.session = Mock()
         client.session.id = "test_session"
         client._accounts = []
+        client.encryption_key = b"a" * 32
         return client
     
     @pytest.fixture
@@ -527,6 +534,7 @@ class TestBatchAddAccounts:
         client = LastPassClient()
         client.session = Mock()
         client.session.id = "test_session"
+        client.encryption_key = b"a" * 32
         return client
     
     def test_batch_add_success(self, mock_client):
@@ -576,6 +584,7 @@ class TestChangeMasterPassword:
         client = LastPassClient()
         client.session = Mock()
         client.session.id = "test_session"
+        client.encryption_key = b"a" * 32
         return client
     
     def test_change_password_not_implemented(self, mock_client):

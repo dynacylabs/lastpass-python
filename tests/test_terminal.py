@@ -26,7 +26,9 @@ class TestTerminal:
         Terminal.set_color_mode(ColorMode.AUTO)
         Terminal._color_enabled = None  # Reset cache
         
-        with patch('sys.stdout.isatty', return_value=True):
+        with patch('sys.stdout.isatty', return_value=True), \
+             patch.dict('os.environ', {'TERM': 'xterm-256color'}, clear=False), \
+             patch.dict('os.environ', {'NO_COLOR': ''}, clear=False):
             assert Terminal.is_color_enabled() is True
     
     def test_color_mode_auto_no_tty(self):

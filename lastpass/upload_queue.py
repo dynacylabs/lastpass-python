@@ -177,11 +177,11 @@ class UploadQueue:
             session: Active LastPass session
             key: Decryption key
         """
-        from .http import HttpClient
+        from .http import HTTPClient
         
         self._cleanup_failures()
         
-        http = HttpClient()
+        http = HTTPClient()
         
         while True:
             entry_info = self._get_next_entry(key)

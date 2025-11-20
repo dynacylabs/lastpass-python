@@ -86,7 +86,7 @@ NOTE_TEMPLATES = {
         ],
     ),
     NoteType.CREDIT: NoteTemplate(
-        shortname="credit-card",
+        shortname="creditcard",
         name="Credit Card",
         fields=[
             "Name on Card",
@@ -119,7 +119,7 @@ NOTE_TEMPLATES = {
         ],
     ),
     NoteType.DRIVERS_LICENSE: NoteTemplate(
-        shortname="drivers-license",
+        shortname="driverslicense",
         name="Driver's License",
         fields=[
             "Number",
@@ -268,7 +268,7 @@ NOTE_TEMPLATES = {
         ],
     ),
     NoteType.SSH_KEY: NoteTemplate(
-        shortname="ssh-key",
+        shortname="sshkey",
         name="SSH Key",
         fields=[
             "Bit Strength",
@@ -310,7 +310,7 @@ NOTE_TEMPLATES = {
     ),
     NoteType.WIFI: NoteTemplate(
         shortname="wifi",
-        name="Wi-Fi Password",
+        name="WiFi Password",
         fields=[
             "SSID",
             "Password",

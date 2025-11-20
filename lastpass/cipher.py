@@ -93,7 +93,11 @@ def aes_encrypt(plaintext: str, key: bytes) -> bytes:
         
         # Encrypt with CBC mode
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        plaintext_bytes = plaintext.encode('utf-8')
+        # Handle both string and bytes input
+        if isinstance(plaintext, bytes):
+            plaintext_bytes = plaintext
+        else:
+            plaintext_bytes = plaintext.encode('utf-8')
         padded = pad(plaintext_bytes, AES.block_size)
         ciphertext = cipher.encrypt(padded)
         

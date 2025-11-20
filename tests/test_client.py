@@ -1133,7 +1133,7 @@ class TestNewFeaturesCoverage:
         client._shares = []
         
         from lastpass.exceptions import LastPassException
-        with patch.object(client, 'get_shares', return_value=[]):
+        with patch.object(client, 'find_share', return_value=None):
             with pytest.raises(LastPassException, match="Share not found"):
                 client.delete_share("nonexistent")
     
@@ -1144,7 +1144,7 @@ class TestNewFeaturesCoverage:
         client.session = get_mock_session()
         
         from lastpass.exceptions import LastPassException
-        with patch.object(client, 'get_shares', return_value=[]):
+        with patch.object(client, 'find_share', return_value=None):
             with pytest.raises(LastPassException, match="Share not found"):
                 client.add_share_user("nonexistent", "user@example.com")
     
@@ -1155,7 +1155,7 @@ class TestNewFeaturesCoverage:
         client.session = get_mock_session()
         
         from lastpass.exceptions import LastPassException
-        with patch.object(client, 'get_shares', return_value=[]):
+        with patch.object(client, 'find_share', return_value=None):
             with pytest.raises(LastPassException, match="Share not found"):
                 client.remove_share_user("nonexistent", "user@example.com")
     
@@ -1166,7 +1166,7 @@ class TestNewFeaturesCoverage:
         client.session = get_mock_session()
         
         from lastpass.exceptions import LastPassException
-        with patch.object(client, 'get_shares', return_value=[]):
+        with patch.object(client, 'find_share', return_value=None):
             with pytest.raises(LastPassException, match="Share not found"):
                 client.update_share_user("nonexistent", "user@example.com")
     
@@ -1177,7 +1177,7 @@ class TestNewFeaturesCoverage:
         client.session = get_mock_session()
         
         from lastpass.exceptions import LastPassException
-        with patch.object(client, 'get_shares', return_value=[]):
+        with patch.object(client, 'find_share', return_value=None):
             with pytest.raises(LastPassException, match="Share not found"):
                 client.list_share_users("nonexistent")
     

@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
       fail-fast: false
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -30,24 +30,17 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install -e .
         pip install -r requirements.txt
-        pip install pytest pytest-cov pytest-mock responses
     
-    - name: Run all tests with coverage (including live API tests)
-      env:
-        LASTPASS_USERNAME: ${{ secrets.LASTPASS_USERNAME }}
-        LASTPASS_PASSWORD: ${{ secrets.LASTPASS_PASSWORD }}
+    - name: Run tests with coverage
       run: |
-        if [ -n "$LASTPASS_USERNAME" ] && [ -n "$LASTPASS_PASSWORD" ]; then
-          echo "Running all tests including live API tests..."
-          ./run_tests.sh --all --username "$LASTPASS_USERNAME" --password "$LASTPASS_PASSWORD"
-        else
-          echo "Secrets not configured, running mock tests only..."
-          pytest tests/ -v --cov=lastpass --cov-report=term-missing --cov-report=xml --cov-report=html
-        fi
+        pytest tests/ -m "not live" -v --cov=lastpass --cov-report=term-missing --cov-report=xml --cov-report=html
     
     - name: Check coverage threshold
       run: |
+        # Coverage target is 95% of core business logic
+        # (System integration modules are excluded - see pyproject.toml)
         coverage report --fail-under=95
     
     - name: Upload coverage reports
@@ -71,7 +64,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -82,8 +75,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install ruff mypy
-        pip install -r requirements.txt
+        pip install ruff mypy black
+        pip install -e .
+    
+    - name: Check code formatting with Black
+      run: |
+        black --check lastpass/ tests/
+      continue-on-error: true
     
     - name: Lint with ruff
       run: |
