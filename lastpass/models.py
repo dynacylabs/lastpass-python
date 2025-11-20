@@ -61,6 +61,43 @@ class Share:
 
 
 @dataclass
+class ShareUser:
+    """User in a shared folder"""
+    username: str
+    uid: str = ""
+    realname: str = ""
+    readonly: bool = False
+    admin: bool = False
+    hide_passwords: bool = False
+    accepted: bool = False
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "username": self.username,
+            "uid": self.uid,
+            "realname": self.realname,
+            "readonly": self.readonly,
+            "admin": self.admin,
+            "hide_passwords": self.hide_passwords,
+            "accepted": self.accepted,
+        }
+
+
+@dataclass
+class ShareLimit:
+    """Share limit configuration (whitelist/blacklist of accounts)"""
+    whitelist: bool = False  # If True, account_ids is whitelist; if False, blacklist
+    account_ids: List[str] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "whitelist": self.whitelist,
+            "account_ids": self.account_ids,
+        }
+
+
+@dataclass
 class Account:
     """LastPass account/entry in the vault"""
     id: str
@@ -77,9 +114,18 @@ class Account:
     favorite: bool = False
     is_app: bool = False
     attach_present: bool = False
+    attachkey: str = ""
     fields: List[Field] = field(default_factory=list)
     attachments: List[Attachment] = field(default_factory=list)
     share: Optional[Share] = None
+    
+    # App-specific fields (when is_app=True)
+    appname: str = ""
+    wintitle: str = ""
+    wininfo: str = ""
+    exeversion: str = ""
+    warnversion: str = ""
+    exehash: str = ""
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert account to dictionary"""
@@ -99,6 +145,14 @@ class Account:
             "is_app": self.is_app,
             "attach_present": self.attach_present,
         }
+        
+        if self.is_app:
+            data["appname"] = self.appname
+            data["wintitle"] = self.wintitle
+            data["wininfo"] = self.wininfo
+            data["exeversion"] = self.exeversion
+            data["warnversion"] = self.warnversion
+            data["exehash"] = self.exehash
         
         if self.fields:
             data["fields"] = [f.to_dict() for f in self.fields]

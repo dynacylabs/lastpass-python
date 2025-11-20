@@ -348,10 +348,10 @@ class TestCLIShow:
         mock_client.find_account.return_value = sample_account
         
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            with patch.object(cli, '_copy_to_clipboard') as mock_clip:
+            with patch('lastpass.clipboard.ClipboardManager.copy_to_clipboard', return_value=True) as mock_clip:
                 result = cli.run(['show', 'Test Account', '--password', '--clip'])
                 assert result == 0
-                mock_clip.assert_called_once_with('testpass')
+                mock_clip.assert_called_once_with('testpass', cli.clipboard_timeout)
                 assert "Copied to clipboard" in mock_stdout.getvalue()
     
     def test_show_account_not_found(self, cli, mock_client):
@@ -479,10 +479,10 @@ class TestCLIGenerate:
         mock_client.generate_password.return_value = "clippass"
         
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            with patch.object(cli, '_copy_to_clipboard') as mock_clip:
+            with patch('lastpass.clipboard.ClipboardManager.copy_to_clipboard', return_value=True) as mock_clip:
                 result = cli.run(['generate', '--clip'])
                 assert result == 0
-                mock_clip.assert_called_once_with('clippass')
+                mock_clip.assert_called_once_with('clippass', cli.clipboard_timeout)
                 assert "Password copied to clipboard" in mock_stdout.getvalue()
 
 
@@ -542,116 +542,6 @@ class TestCLIHelpers:
         assert "Name: Test" in output
         assert "Fields:" not in output
     
-    def test_copy_to_clipboard_pyperclip(self, cli):
-        """Test copy to clipboard with pyperclip"""
-        mock_pyperclip = MagicMock()
-        with patch.dict('sys.modules', {'pyperclip': mock_pyperclip}):
-            cli._copy_to_clipboard("test text")
-            mock_pyperclip.copy.assert_called_once_with("test text")
-    
-    def test_copy_to_clipboard_macos(self, cli):
-        """Test copy to clipboard on macOS"""
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Darwin'):
-                with patch('subprocess.run') as mock_run:
-                    mock_run.return_value = Mock()
-                    cli._copy_to_clipboard("test text")
-                    mock_run.assert_called_once()
-                    assert mock_run.call_args[0][0] == ['pbcopy']
-    
-    def test_copy_to_clipboard_linux_xclip(self, cli):
-        """Test copy to clipboard on Linux with xclip"""
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Linux'):
-                with patch('subprocess.run') as mock_run:
-                    mock_run.return_value = Mock()
-                    cli._copy_to_clipboard("test text")
-                    mock_run.assert_called_once()
-                    assert 'xclip' in mock_run.call_args[0][0]
-    
-    def test_copy_to_clipboard_linux_xsel(self, cli):
-        """Test copy to clipboard on Linux with xsel fallback"""
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Linux'):
-                with patch('subprocess.run') as mock_run:
-                    # First call (xclip) fails, second call (xsel) succeeds
-                    mock_run.side_effect = [
-                        FileNotFoundError(),
-                        Mock()
-                    ]
-                    cli._copy_to_clipboard("test text")
-                    assert mock_run.call_count == 2
-                    assert 'xsel' in mock_run.call_args[0][0]
-    
-    def test_copy_to_clipboard_unsupported_platform(self, cli):
-        """Test copy to clipboard on unsupported platform"""
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Windows'):
-                with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
-                    cli._copy_to_clipboard("test text")
-                    assert "Clipboard not supported" in mock_stderr.getvalue()
-    
-    def test_copy_to_clipboard_command_not_found(self, cli):
-        """Test copy to clipboard when commands not available"""
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Linux'):
-                with patch('subprocess.run', side_effect=FileNotFoundError):
-                    with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
-                        cli._copy_to_clipboard("test text")
-                        assert "Could not copy to clipboard" in mock_stderr.getvalue()
-    
-    def test_copy_to_clipboard_subprocess_error(self, cli):
-        """Test copy to clipboard with subprocess error"""
-        import subprocess
-        import builtins
-        real_import = builtins.__import__
-        def mock_import(name, *args, **kwargs):
-            if name == 'pyperclip':
-                raise ImportError()
-            return real_import(name, *args, **kwargs)
-        
-        with patch('builtins.__import__', side_effect=mock_import):
-            with patch('platform.system', return_value='Darwin'):
-                with patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, 'pbcopy')):
-                    with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
-                        cli._copy_to_clipboard("test text")
-                        assert "Could not copy to clipboard" in mock_stderr.getvalue()
-
 
 class TestCLIWriteCommands:
     """Test CLI write commands (add, edit, rm, duplicate, mv)"""
@@ -1010,6 +900,38 @@ class TestCLIEdgeCases:
             mock_client.update_account.assert_called_once()
             call_kwargs = mock_client.update_account.call_args[1]
             assert call_kwargs['password'] == 'prompted_password'
+
+
+class TestCLIIntegration:
+    """Test CLI integration with modules"""
+    
+    def test_cli_has_config(self, cli):
+        """Test that CLI has config attribute"""
+        from lastpass.config import Config
+        assert hasattr(cli, 'config')
+        assert isinstance(cli.config, Config)
+    
+    def test_cli_has_clipboard_timeout(self, cli):
+        """Test that CLI has clipboard_timeout attribute"""
+        assert hasattr(cli, 'clipboard_timeout')
+    
+    def test_expand_notes(self, cli):
+        """Test ASCII armor expansion"""
+        # Test with PGP armor
+        notes_with_armor = "-----BEGIN PGP PUBLIC KEY BLOCK----- some content here -----END PGP PUBLIC KEY BLOCK-----"
+        expanded = cli._expand_notes(notes_with_armor)
+        assert "-----BEGIN PGP PUBLIC KEY BLOCK-----" in expanded
+        assert "-----END PGP PUBLIC KEY BLOCK-----" in expanded
+    
+    def test_format_account_with_colors(self, cli, sample_account):
+        """Test account formatting with colors"""
+        from lastpass.terminal import Terminal, ColorMode
+        
+        Terminal.set_color_mode(ColorMode.ALWAYS)
+        
+        formatted = cli._format_account(sample_account)
+        assert "Test Account" in formatted
+        assert "testuser" in formatted
 
 
 class TestMain:

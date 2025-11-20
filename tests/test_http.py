@@ -695,3 +695,220 @@ class TestHTTPRetryEdgeCases:
         # Should raise with specific rate limit message
         with pytest.raises(NetworkException, match="Rate limited by LastPass"):
             client.download_blob(session)
+
+
+class TestShareManagementEndpoints:
+    """Test share management HTTP endpoints"""
+    
+    @responses.activate
+    def test_create_share(self):
+        """Test creating a share"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"id":"share123"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        share_id = client.create_share(
+            session=session,
+            share_name="Team Share"
+        )
+        
+        assert share_id == "share123"
+    
+    @responses.activate
+    def test_delete_share(self):
+        """Test deleting a share"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.delete_share(
+            session=session,
+            share_id="share123"
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_get_share_users(self):
+        """Test getting share users"""
+        session = get_mock_session()
+        
+        user_data = b'[{"username":"user@example.com","uid":"123"}]'
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=user_data,
+            status=200,
+        )
+        
+        client = HTTPClient()
+        users = client.get_share_users(
+            session=session,
+            share_id="share123"
+        )
+        
+        # Returns a list
+        assert isinstance(users, list)
+    
+    @responses.activate
+    def test_add_share_user(self):
+        """Test adding user to share"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.add_share_user(
+            session=session,
+            share_id="share123",
+            username="newuser@example.com",
+            readonly=True,
+            admin=False
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_remove_share_user(self):
+        """Test removing user from share"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.remove_share_user(
+            session=session,
+            share_id="share123",
+            username="user@example.com"
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_update_share_user(self):
+        """Test updating share user permissions"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.update_share_user(
+            session=session,
+            share_id="share123",
+            username="user@example.com",
+            readonly=False,
+            admin=True
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_create_share_network_error(self):
+        """Test create_share with network error"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            status=500,
+        )
+        
+        client = HTTPClient()
+        
+        with pytest.raises(NetworkException):
+            client.create_share(session, "Test Share")
+    
+    @responses.activate
+    def test_get_share_users_network_error(self):
+        """Test get_share_users with network error"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            status=500,
+        )
+        
+        client = HTTPClient()
+        
+        with pytest.raises(NetworkException):
+            client.get_share_users(session, "share123")
+    
+    @responses.activate
+    def test_add_share_user_with_all_permissions(self):
+        """Test adding share user with all permission options"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.add_share_user(
+            session=session,
+            share_id="share123",
+            username="admin@example.com",
+            readonly=False,
+            admin=True,
+            hide_passwords=False
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1
+    
+    @responses.activate
+    def test_update_share_user_partial_permissions(self):
+        """Test updating share user with only some permissions"""
+        session = get_mock_session()
+        
+        responses.add(
+            responses.POST,
+            "https://lastpass.com/share.php",
+            body=b'{"result":"success"}',
+            status=200,
+        )
+        
+        client = HTTPClient()
+        client.update_share_user(
+            session=session,
+            share_id="share123",
+            username="user@example.com",
+            readonly=True
+        )
+        
+        # Should not raise
+        assert len(responses.calls) == 1

@@ -1017,3 +1017,268 @@ class TestSearchAccountsEdgeCases:
         
         assert len(results) == 2
         assert all(a.group == "Work" for a in results)
+
+
+class TestNewFeaturesCoverage:
+    """Test coverage for newly implemented features"""
+    
+    @responses.activate
+    def test_export_to_csv_not_logged_in(self):
+        """Test export when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.export_to_csv()
+    
+    @responses.activate
+    def test_import_from_csv_not_logged_in(self):
+        """Test import when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.import_from_csv("url,username,password,name\n")
+    
+    def test_search_accounts_regex_not_logged_in(self):
+        """Test regex search when not logged in"""
+        client = LastPassClient()
+        
+        results = client.search_accounts_regex("test", sync=False)
+        assert results == []
+    
+    def test_search_accounts_fixed_not_logged_in(self):
+        """Test fixed search when not logged in"""
+        client = LastPassClient()
+        
+        results = client.search_accounts_fixed("test", sync=False)
+        assert results == []
+    
+    @responses.activate
+    def test_add_secure_note_not_logged_in(self):
+        """Test add secure note when not logged in"""
+        client = LastPassClient()
+        
+        from lastpass.note_types import NoteType
+        with pytest.raises(InvalidSessionException):
+            client.add_secure_note("Test", NoteType.GENERIC, {})
+    
+    @responses.activate
+    def test_create_share_not_logged_in(self):
+        """Test create share when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.create_share("Test Share")
+    
+    @responses.activate
+    def test_delete_share_not_logged_in(self):
+        """Test delete share when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.delete_share("share123")
+    
+    @responses.activate
+    def test_add_share_user_not_logged_in(self):
+        """Test add share user when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.add_share_user("share123", "user@example.com")
+    
+    @responses.activate
+    def test_remove_share_user_not_logged_in(self):
+        """Test remove share user when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.remove_share_user("share123", "user@example.com")
+    
+    @responses.activate
+    def test_update_share_user_not_logged_in(self):
+        """Test update share user when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.update_share_user("share123", "user@example.com")
+    
+    @responses.activate
+    def test_list_share_users_not_logged_in(self):
+        """Test list share users when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.list_share_users("share123")
+    
+    @responses.activate
+    def test_get_attachment_not_logged_in(self):
+        """Test get attachment when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.get_attachment("account123", "file.pdf")
+    
+    @responses.activate
+    def test_change_password_not_logged_in(self):
+        """Test change password when not logged in"""
+        client = LastPassClient()
+        
+        with pytest.raises(InvalidSessionException):
+            client.change_password("oldpass", "newpass")
+    
+    @responses.activate
+    def test_delete_share_not_found(self):
+        """Test delete share when share not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client._shares = []
+        
+        from lastpass.exceptions import LastPassException
+        with patch.object(client, 'get_shares', return_value=[]):
+            with pytest.raises(LastPassException, match="Share not found"):
+                client.delete_share("nonexistent")
+    
+    @responses.activate
+    def test_add_share_user_share_not_found(self):
+        """Test add share user when share not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        from lastpass.exceptions import LastPassException
+        with patch.object(client, 'get_shares', return_value=[]):
+            with pytest.raises(LastPassException, match="Share not found"):
+                client.add_share_user("nonexistent", "user@example.com")
+    
+    @responses.activate
+    def test_remove_share_user_share_not_found(self):
+        """Test remove share user when share not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        from lastpass.exceptions import LastPassException
+        with patch.object(client, 'get_shares', return_value=[]):
+            with pytest.raises(LastPassException, match="Share not found"):
+                client.remove_share_user("nonexistent", "user@example.com")
+    
+    @responses.activate
+    def test_update_share_user_share_not_found(self):
+        """Test update share user when share not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        from lastpass.exceptions import LastPassException
+        with patch.object(client, 'get_shares', return_value=[]):
+            with pytest.raises(LastPassException, match="Share not found"):
+                client.update_share_user("nonexistent", "user@example.com")
+    
+    @responses.activate
+    def test_list_share_users_share_not_found(self):
+        """Test list share users when share not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        from lastpass.exceptions import LastPassException
+        with patch.object(client, 'get_shares', return_value=[]):
+            with pytest.raises(LastPassException, match="Share not found"):
+                client.list_share_users("nonexistent")
+    
+    @responses.activate
+    def test_get_attachment_account_not_found(self):
+        """Test get attachment when account not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client._accounts = []
+        client._blob_loaded = True
+        
+        with pytest.raises(AccountNotFoundException):
+            client.get_attachment("nonexistent", "file.pdf")
+    
+    @responses.activate
+    def test_get_attachment_attachment_not_found(self):
+        """Test get attachment when attachment not found"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        account = Account(
+            id="1",
+            name="Test",
+            username="user",
+            password="pass",
+            url="http://test.com",
+            group="Personal",
+            attachments=[]
+        )
+        client._accounts = [account]
+        client._blob_loaded = True
+        
+        from lastpass.exceptions import LastPassException
+        with pytest.raises(LastPassException, match="Attachment not found"):
+            client.get_attachment("Test", "nonexistent.pdf")
+    
+    @responses.activate
+    def test_export_to_csv_calls_sync(self):
+        """Test export_to_csv triggers sync"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client._accounts = get_mock_accounts()
+        
+        with patch.object(client, 'get_accounts', return_value=get_mock_accounts()) as mock_get:
+            csv_output = client.export_to_csv()
+            
+            # get_accounts should be called with sync=True
+            mock_get.assert_called_once_with(sync=True)
+            assert isinstance(csv_output, str)
+    
+    @responses.activate
+    def test_import_from_csv_with_errors_continues(self):
+        """Test import continues after errors"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client.encryption_key = b"a" * 32
+        client._blob_loaded = True
+        
+        csv_data = "url,username,password,name\nhttp://test.com,user,pass,Test\n"
+        
+        # Mock add_account to raise exception
+        with patch.object(client, 'add_account', side_effect=Exception("Test error")):
+            # Capture stdout to suppress error message
+            import sys
+            from io import StringIO
+            old_stdout = sys.stdout
+            sys.stdout = StringIO()
+            
+            try:
+                count = client.import_from_csv(csv_data)
+                # Should return 0 since add failed
+                assert count == 0
+            finally:
+                sys.stdout = old_stdout
+    
+    def test_search_accounts_regex_invalid_pattern(self):
+        """Test regex search with invalid pattern"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        from lastpass.exceptions import LastPassException
+        with pytest.raises(LastPassException, match="Invalid regex pattern"):
+            client.search_accounts_regex("[invalid(", sync=False)
+    
+    def test_search_accounts_fixed_empty_string(self):
+        """Test fixed search with empty string returns nothing"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        client._accounts = get_mock_accounts()
+        client._blob_loaded = True
+        
+        results = client.search_accounts_fixed("", sync=False)
+        assert len(results) == 0
+    
+    @responses.activate
+    def test_change_password_raises_not_implemented(self):
+        """Test change_password raises NotImplementedError"""
+        client = LastPassClient()
+        client.session = get_mock_session()
+        
+        with pytest.raises(NotImplementedError, match="Password change requires additional server-side implementation"):
+            client.change_password("oldpass", "newpass")

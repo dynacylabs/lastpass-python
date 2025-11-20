@@ -160,3 +160,8 @@ def hex_to_bytes(hex_string: str) -> bytes:
         return bytes.fromhex(hex_string)
     except ValueError as e:
         raise DecryptionException(f"Invalid hex string: {e}")
+
+
+# Aliases for compatibility with new modules
+decrypt_aes256_cbc_base64 = aes_decrypt_base64
+encrypt_aes256_cbc_base64 = encrypt_and_base64

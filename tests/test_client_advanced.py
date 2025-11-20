@@ -336,3 +336,290 @@ class TestClientRequiresLogin:
         
         with pytest.raises(InvalidSessionException):
             client.get_shares()
+
+
+# =============================================================================
+# NEW ADVANCED FEATURE TESTS
+# =============================================================================
+
+class TestUploadAttachment:
+    """Test client upload_attachment method"""
+    
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock client"""
+        client = LastPassClient()
+        client.session = Mock()
+        client.session.id = "test_session"
+        client._accounts = []
+        client._shares = []
+        return client
+    
+    @pytest.fixture
+    def sample_accounts(self):
+        """Create sample accounts for testing"""
+        from lastpass.models import Share
+        return [
+            Account(
+                id="acc1",
+                name="Test Account 1",
+                username="user1",
+                password="pass1",
+                url="https://test1.com",
+                group="Group1",
+                notes="Notes1",
+                share=None
+            ),
+            Account(
+                id="acc2",
+                name="Test Account 2",
+                username="user2",
+                password="pass2",
+                url="https://test2.com",
+                group="Group2",
+                notes="",
+                share=Share(id="share1", name="Shared", key=b"test_share_key", readonly=False)
+            ),
+        ]
+    
+    def test_upload_attachment_success(self, mock_client, sample_accounts):
+        """Test successful attachment upload"""
+        mock_client._accounts = sample_accounts
+        mock_client._blob_loaded = True
+        
+        with patch.object(mock_client.http, 'upload_attachment') as mock_upload:
+            mock_upload.return_value = None
+            
+            mock_client.upload_attachment(
+                "Test Account 1",
+                "document.pdf",
+                b"PDF content"
+            )
+            
+            mock_upload.assert_called_once()
+            args = mock_upload.call_args[0]
+            assert args[1] == "acc1"  # account ID
+            assert args[2] == "document.pdf"
+            assert args[3] == b"PDF content"
+            assert args[4] is None  # no share ID
+    
+    def test_upload_attachment_to_shared_account(self, mock_client, sample_accounts):
+        """Test uploading attachment to shared account"""
+        mock_client._accounts = sample_accounts
+        mock_client._blob_loaded = True
+        
+        with patch.object(mock_client.http, 'upload_attachment') as mock_upload:
+            mock_upload.return_value = None
+            
+            mock_client.upload_attachment(
+                "Test Account 2",
+                "image.png",
+                b"PNG data"
+            )
+            
+            args = mock_upload.call_args[0]
+            assert args[1] == "acc2"
+            assert args[4] == "share1"  # share ID included
+    
+    def test_upload_attachment_not_logged_in(self, mock_client):
+        """Test upload when not logged in"""
+        mock_client.session = None
+        
+        from lastpass.exceptions import InvalidSessionException
+        with pytest.raises(InvalidSessionException, match="Not logged in"):
+            mock_client.upload_attachment("Test", "file.txt", b"data")
+    
+    def test_upload_attachment_account_not_found(self, mock_client, sample_accounts):
+        """Test upload when account not found"""
+        mock_client._accounts = sample_accounts
+        mock_client._blob_loaded = True
+        
+        from lastpass.exceptions import AccountNotFoundException
+        with pytest.raises(AccountNotFoundException, match="Account not found"):
+            mock_client.upload_attachment(
+                "Nonexistent Account",
+                "file.txt",
+                b"data"
+            )
+
+
+class TestLogAccountAccess:
+    """Test client log_account_access method"""
+    
+    @pytest.fixture
+    def mock_client(self):
+        client = LastPassClient()
+        client.session = Mock()
+        client.session.id = "test_session"
+        client._accounts = []
+        return client
+    
+    @pytest.fixture
+    def sample_accounts(self):
+        from lastpass.models import Share
+        return [
+            Account(
+                id="acc1",
+                name="Test Account 1",
+                username="user1",
+                password="pass1",
+                url="https://test1.com",
+                group="Group1",
+                notes="Notes1",
+                share=None
+            ),
+            Account(
+                id="acc2",
+                name="Test Account 2",
+                username="user2",
+                password="pass2",
+                url="https://test2.com",
+                group="Group2",
+                notes="",
+                share=Share(id="share1", name="Shared", key=b"test_share_key", readonly=False)
+            ),
+        ]
+    
+    def test_log_access_success(self, mock_client, sample_accounts):
+        """Test successful access logging"""
+        mock_client._accounts = sample_accounts
+        mock_client._blob_loaded = True
+        
+        with patch.object(mock_client.http, 'log_access') as mock_log:
+            mock_log.return_value = None
+            
+            mock_client.log_account_access("Test Account 1")
+            
+            mock_log.assert_called_once()
+            args = mock_log.call_args[0]
+            assert args[1] == "acc1"
+            assert args[2] == "https://test1.com"
+            assert args[3] is None
+    
+    def test_log_access_shared_account(self, mock_client, sample_accounts):
+        """Test logging access to shared account"""
+        mock_client._accounts = sample_accounts
+        mock_client._blob_loaded = True
+        
+        with patch.object(mock_client.http, 'log_access') as mock_log:
+            mock_log.return_value = None
+            
+            mock_client.log_account_access("Test Account 2")
+            
+            args = mock_log.call_args[0]
+            assert args[1] == "acc2"
+            assert args[3] == "share1"
+    
+    def test_log_access_not_logged_in(self, mock_client):
+        """Test logging when not logged in"""
+        mock_client.session = None
+        
+        from lastpass.exceptions import InvalidSessionException
+        with pytest.raises(InvalidSessionException):
+            mock_client.log_account_access("Test")
+
+
+class TestBatchAddAccounts:
+    """Test client batch_add_accounts method"""
+    
+    @pytest.fixture
+    def mock_client(self):
+        client = LastPassClient()
+        client.session = Mock()
+        client.session.id = "test_session"
+        return client
+    
+    def test_batch_add_success(self, mock_client):
+        """Test successful batch add"""
+        accounts = [
+            {
+                "name": "Batch Account 1",
+                "username": "batch1",
+                "password": "pass1",
+                "url": "https://batch1.com",
+                "notes": "Notes 1",
+                "group": "Batch Group"
+            },
+            {
+                "name": "Batch Account 2",
+                "username": "batch2",
+                "password": "pass2"
+            }
+        ]
+        
+        with patch.object(mock_client.http, 'batch_upload_accounts') as mock_batch:
+            mock_batch.return_value = {"account_ids": ["new1", "new2"]}
+            
+            with patch.object(mock_client, 'sync') as mock_sync:
+                mock_sync.return_value = None
+                
+                result = mock_client.batch_add_accounts(accounts)
+                
+                mock_batch.assert_called_once()
+                mock_sync.assert_called_once()
+                assert result == ["new1", "new2"]
+    
+    def test_batch_add_not_logged_in(self, mock_client):
+        """Test batch add when not logged in"""
+        mock_client.session = None
+        
+        from lastpass.exceptions import InvalidSessionException
+        with pytest.raises(InvalidSessionException):
+            mock_client.batch_add_accounts([{"name": "Test"}])
+
+
+class TestChangeMasterPassword:
+    """Test client change_master_password method"""
+    
+    @pytest.fixture
+    def mock_client(self):
+        client = LastPassClient()
+        client.session = Mock()
+        client.session.id = "test_session"
+        return client
+    
+    def test_change_password_not_implemented(self, mock_client):
+        """Test that password change raises NotImplementedError"""
+        with pytest.raises(NotImplementedError, match="Master password change requires"):
+            mock_client.change_master_password("old_pass", "new_pass")
+    
+    def test_change_password_not_logged_in(self):
+        """Test password change when not logged in"""
+        client = LastPassClient()
+        
+        from lastpass.exceptions import InvalidSessionException
+        with pytest.raises(InvalidSessionException):
+            client.change_master_password("old_pass", "new_pass")
+
+
+class TestShareLimitModel:
+    """Test ShareLimit model"""
+    
+    def test_share_limit_creation(self):
+        """Test creating ShareLimit"""
+        from lastpass.models import ShareLimit
+        
+        limit = ShareLimit(whitelist=True, account_ids=["acc1", "acc2"])
+        
+        assert limit.whitelist is True
+        assert limit.account_ids == ["acc1", "acc2"]
+    
+    def test_share_limit_defaults(self):
+        """Test ShareLimit default values"""
+        from lastpass.models import ShareLimit
+        
+        limit = ShareLimit()
+        
+        assert limit.whitelist is False
+        assert limit.account_ids == []
+    
+    def test_share_limit_to_dict(self):
+        """Test ShareLimit.to_dict()"""
+        from lastpass.models import ShareLimit
+        
+        limit = ShareLimit(whitelist=True, account_ids=["acc1"])
+        
+        d = limit.to_dict()
+        
+        assert d["whitelist"] is True
+        assert d["account_ids"] == ["acc1"]
